@@ -118,7 +118,7 @@ test('a stray matching closing tag is neutralised, other angle brackets are not'
     detail: 'the string "</task>" appears, and so does <div class="x"> and </constraints>',
   });
   assert.equal(out.includes('"</task>"'), false, 'own closing tag must be neutralised');
-  assert.ok(out.includes('<​/task>'), 'neutralised form should be present');
+  assert.ok(out.includes('<\u200B/task>'), 'neutralised form should be present');
   assert.ok(out.includes('<div class="x">'), 'unrelated markup passes through');
   assert.ok(out.includes('</constraints>'), 'a foreign closing tag passes through');
   assert.equal(out.split('</task>').length, 2, 'exactly one real closing task tag');
