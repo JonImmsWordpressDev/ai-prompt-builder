@@ -10,6 +10,7 @@ import {
   apbExportProfiles,
   apbImportProfiles,
   apbMigratePayload,
+  apbResolveBootProfiles,
 } from '../src/profiles.js';
 
 test('schema version is 1', () => {
@@ -206,4 +207,33 @@ test('migratePayload rejects a future version', () => {
 test('migratePayload rejects a missing or non-numeric version', () => {
   assert.equal(apbMigratePayload({ profiles: [] }).ok, false);
   assert.equal(apbMigratePayload({ schemaVersion: 'one', profiles: [] }).ok, false);
+});
+
+test('resolveBootProfiles returns a stored array as-is', () => {
+  const stored = [mk('p_1', 'ADO')];
+  const starters = () => { throw new Error('starters should not be called'); };
+  const r = apbResolveBootProfiles(stored, { seeded: true }, starters);
+  assert.equal(r.profiles, stored);
+  assert.equal(r.seeded, true);
+});
+
+test('resolveBootProfiles seeds starters on a genuine first run', () => {
+  const starterProfiles = [mk('p_starter', 'Starter')];
+  const r = apbResolveBootProfiles(null, {}, () => starterProfiles);
+  assert.equal(r.profiles, starterProfiles);
+  assert.equal(r.seeded, true);
+});
+
+test('resolveBootProfiles never resurrects starters once seeded and emptied', () => {
+  const starters = () => { throw new Error('starters should not be called'); };
+  const r = apbResolveBootProfiles(null, { seeded: true }, starters);
+  assert.deepEqual(r.profiles, []);
+  assert.equal(r.seeded, true);
+});
+
+test('resolveBootProfiles respects an empty stored array rather than reseeding', () => {
+  const starters = () => { throw new Error('starters should not be called'); };
+  const r = apbResolveBootProfiles([], { seeded: true }, starters);
+  assert.deepEqual(r.profiles, []);
+  assert.equal(r.seeded, true);
 });

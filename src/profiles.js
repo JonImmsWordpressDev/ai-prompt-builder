@@ -79,6 +79,16 @@ export function apbMigratePayload(payload) {
   return { ok: true, payload: { ...current, schemaVersion: APB_SCHEMA_VERSION } };
 }
 
+// Boot-time decision: seed starters only on a genuine first run (no stored
+// profiles array yet, and not previously seeded), never once the user has
+// emptied their profile list on purpose. The starter factory arrives as a
+// parameter so this stays pure and testable without touching storage.
+export function apbResolveBootProfiles(storedProfiles, settings, makeStarters) {
+  if (Array.isArray(storedProfiles)) return { profiles: storedProfiles, seeded: true };
+  if (settings && settings.seeded) return { profiles: [], seeded: true };
+  return { profiles: makeStarters(), seeded: true };
+}
+
 export function apbImportProfiles(text, existing, mode) {
   if (mode !== 'merge' && mode !== 'replace') {
     return { ok: false, error: `Unknown import mode "${mode}".` };

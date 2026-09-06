@@ -1,6 +1,8 @@
 import { apbAssemblePrompt, apbToList } from './assembler.js';
 import { apbAnalyzeGaps } from './gapcheck.js';
-import { apbMakeProfile, apbExportProfiles, apbImportProfiles } from './profiles.js';
+import {
+  apbMakeProfile, apbExportProfiles, apbImportProfiles, apbResolveBootProfiles,
+} from './profiles.js';
 import {
   APB_KEYS, apbLoad, apbSave, apbGenerateId, apbNowIso,
   apbStorageAvailable, apbStarterProfiles,
@@ -215,9 +217,13 @@ function apbHandleAction(act, target) {
     case 'block-up':
       if (idx > 0) apbUpdateProfile((p) => p.blocks.splice(idx - 1, 0, p.blocks.splice(idx, 1)[0]));
       break;
-    case 'block-down':
-      apbUpdateProfile((p) => { if (idx < p.blocks.length - 1) p.blocks.splice(idx + 1, 0, p.blocks.splice(idx, 1)[0]); });
+    case 'block-down': {
+      const profile = apbSelectedProfile();
+      if (profile && idx < profile.blocks.length - 1) {
+        apbUpdateProfile((p) => p.blocks.splice(idx + 1, 0, p.blocks.splice(idx, 1)[0]));
+      }
       break;
+    }
     case 'task-clear':
       apbState.task = { ...APB_EMPTY_TASK };
       apbState.polished = '';
@@ -364,12 +370,19 @@ function apbBoot() {
   }
 
   const settings = apbLoad(APB_KEYS.settings, {});
-  let profiles = apbLoad(APB_KEYS.profiles, null);
-  if (!Array.isArray(profiles)) {
-    profiles = settings.seeded ? [] : apbStarterProfiles();
-    apbSave(APB_KEYS.settings, { ...settings, seeded: true });
+  const storedProfiles = apbLoad(APB_KEYS.profiles, null);
+  const resolved = apbResolveBootProfiles(storedProfiles, settings, apbStarterProfiles);
+  apbState.profiles = resolved.profiles.map((p) => apbMakeProfile(p));
+
+  if (!Array.isArray(storedProfiles)) {
+    // First run, or a prior run that never finished persisting. Write the
+    // resolved array before flipping the seeded flag, so a failed write
+    // (quota, locked-down storage) leaves seeded unset rather than lying
+    // about data that never landed. The next load can then seed again,
+    // which is the safe direction to fail in.
+    const wrote = apbSave(APB_KEYS.profiles, apbState.profiles);
+    if (wrote) apbSave(APB_KEYS.settings, { ...settings, seeded: resolved.seeded });
   }
-  apbState.profiles = profiles.map((p) => apbMakeProfile(p));
 
   const draft = apbLoad(APB_KEYS.draft, {});
   apbState.task = { ...APB_EMPTY_TASK, ...(draft.task || {}) };
