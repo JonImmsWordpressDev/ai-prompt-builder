@@ -23,6 +23,7 @@
 - Severity weights are exactly high 20, medium 10, low 5. Score starts at 100 and floors at 0.
 - `APB_SCHEMA_VERSION` is `1`.
 - Never commit `dist/`. It is gitignored.
+- The test script is `node --test test/*.js`, using shell glob expansion. Do NOT use `node --test test/`: passing a bare directory works on Node 18 but fails on Node 23+, and this project's own machine runs Node 25. The glob form works on every version in range.
 
 ## File Structure
 
@@ -192,7 +193,7 @@ Expected: FAIL. Without `package.json` npm errors; once it exists, the run fails
   "scripts": {
     "dev": "node dev-server.js",
     "build": "node build.js",
-    "test": "node --test test/"
+    "test": "node --test test/*.js"
   },
   "engines": {
     "node": ">=18"

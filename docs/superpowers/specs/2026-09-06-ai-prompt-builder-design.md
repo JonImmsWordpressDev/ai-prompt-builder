@@ -63,9 +63,9 @@ lint step.
 
     npm run dev      node dev-server.js       http://127.0.0.1:4518
     npm run build    node build.js            -> dist/prompt-builder.html
-    npm test         node --test test/
+    npm test         node --test test/*.js
 
-Single test: `node --test --test-name-pattern="<name>" test/`
+Single test: `node --test --test-name-pattern="<name>" test/*.js`
 
 ### Build contract
 
@@ -309,7 +309,7 @@ Nothing in the list is a dead end and none of them lose typed input.
 
 ## Testing
 
-`node --test test/` over the pure modules only. `node:test` and
+`node --test test/*.js` over the pure modules only. `node:test` and
 `node:assert`, no framework, matching the author's existing projects.
 
 Coverage required before the work is called done:
