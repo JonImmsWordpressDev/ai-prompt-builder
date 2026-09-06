@@ -122,3 +122,15 @@ test('assembly is deterministic', () => {
   const args = ['Write a post', 'writing', { ...NO_SIGNALS, tone: 'warm' }, { constraints: ['Avoid: jargon'] }];
   assert.equal(apbAssemblePrompt(...args), apbAssemblePrompt(...args));
 });
+
+test('a nudge answer duplicating an extracted signal renders once', () => {
+  const signals = { audience: 'homeowners', tone: 'friendly', length: '500 words', deadline: '' };
+  const out = apbAssemblePrompt('Write a post', 'writing', signals, {
+    tone: ['Friendly'],
+    audience: ['homeowners'],
+    constraints: ['Length: 500 words'],
+  });
+  assert.ok(out.includes('## Tone\nfriendly\n'), 'tone must not repeat');
+  assert.ok(out.includes("## Who it's for\nhomeowners\n"), 'audience must not repeat');
+  assert.equal(out.match(/Length: 500 words/g).length, 1, 'length must not repeat');
+});

@@ -126,12 +126,14 @@ test('extractSignals returns all four keys, empty when absent', () => {
 });
 
 test('every extracted value is copied verbatim from the brief', () => {
-  // Extraction must invent nothing and reword nothing: each value it
-  // returns has to be findable in the brief exactly as returned, so an
-  // implementation that normalised or re-cased a capture fails here.
-  // The other half of the guarantee — that the brief still appears whole
-  // in the finished prompt — is asserted in test/assembler.test.js,
-  // which is the only place an assembled output exists to assert against.
+  // Extraction must invent nothing: every value returned has to be findable
+  // in the brief, case-insensitively — the extractors deliberately lowercase
+  // some of their output, so an exact-case comparison would be wrong here.
+  // The deepEqual below pins the exact expected values for this brief; the
+  // loop generalises the weaker "nothing was invented" guarantee. The other
+  // half — that the brief still appears whole in the finished prompt — is
+  // asserted in test/assembler.test.js, the only place an assembled output
+  // exists to assert against.
   const brief = 'A friendly blog post of 800 words for homeowners, due Friday';
   const signals = apbExtractSignals(brief);
   assert.deepEqual(signals, {
@@ -148,4 +150,13 @@ test('every extracted value is copied verbatim from the brief', () => {
       );
     }
   }
+});
+
+test('a rejected audience capture falls through to the next occurrence', () => {
+  assert.equal(
+    apbExtractAudience('Write this for me. It should be about plumbers for homeowners.'),
+    'homeowners',
+  );
+  // Still returns nothing when every occurrence is rejected.
+  assert.equal(apbExtractAudience('do this for me and for us'), '');
 });

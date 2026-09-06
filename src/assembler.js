@@ -37,6 +37,21 @@ function apbClean(list) {
     .filter(Boolean);
 }
 
+// A nudge answer and an extracted signal can say the same thing — the user
+// typed "friendly" into the brief and also answered the tone chip with it.
+// Both are legitimate inputs, so neither is dropped upstream; they are
+// de-duplicated here, at the one place that knows they landed in the same
+// section.
+function apbDedupe(list) {
+  const seen = new Set();
+  return list.filter((entry) => {
+    const key = entry.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function apbAssemblePrompt(brief, kind, signals, contributions) {
   const body = String(brief == null ? '' : brief).trim();
   if (!body) return '';
@@ -45,16 +60,20 @@ export function apbAssemblePrompt(brief, kind, signals, contributions) {
   const sig = signals || {};
   const c = contributions || {};
 
-  const constraintLines = [
+  const constraintLines = apbDedupe([
     sig.length ? `Length: ${sig.length}` : '',
     sig.deadline ? `Deadline: ${sig.deadline}` : '',
     ...apbClean(c.constraints),
-  ].filter(Boolean);
+  ].filter(Boolean));
 
   const bodies = {
     need: [body, ...apbClean(c.need)].join('\n\n'),
-    audience: [sig.audience, ...apbClean(c.audience)].filter(Boolean).join('\n'),
-    tone: [sig.tone, ...apbClean(c.tone)].filter(Boolean).join(', '),
+    audience: apbDedupe([sig.audience, ...apbClean(c.audience)].filter(Boolean)).join('\n'),
+    tone: apbDedupe(
+      [sig.tone, ...apbClean(c.tone)]
+        .filter(Boolean).join(', ').split(', ')
+        .map((part) => part.trim()).filter(Boolean),
+    ).join(', '),
     constraints: constraintLines.map((line) => `- ${line}`).join('\n'),
     done: apbClean(c.done).join('\n'),
   };

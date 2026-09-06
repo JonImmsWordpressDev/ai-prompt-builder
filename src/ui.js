@@ -81,7 +81,7 @@ function apbRenderNudges(kind, signals) {
   const host = apbEl('apb-nudges');
   const offered = apbOfferedNudges(kind, signals, apbState.nudges);
   const answered = Object.keys(APB_NUDGE_DEFS).filter(
-    (id) => String(apbState.nudges[id] || '').trim(),
+    (id) => String(apbState.nudges[id] == null ? '' : apbState.nudges[id]).trim(),
   );
 
   if (!offered.length && !answered.length) {
@@ -123,6 +123,10 @@ function apbRenderNudges(kind, signals) {
 }
 
 function apbRender() {
+  // A direct render supersedes any debounced one still pending. Letting that
+  // stale timer fire would rebuild an open nudge input and discard whatever
+  // has been typed into it since.
+  window.clearTimeout(apbRenderTimer);
   const brief = apbState.brief.trim();
   const kind = apbCurrentKind();
   const signals = apbExtractSignals(apbState.brief);

@@ -106,15 +106,24 @@ export const APB_AUDIENCE_REJECT = [
 export function apbExtractAudience(brief) {
   const text = String(brief == null ? '' : brief);
   for (const cue of APB_AUDIENCE_CUES) {
-    // Leading \b only: "audience:" ends in a colon, where a trailing
-    // \b would not match. \b before the cue is what stops "for"
-    // firing inside "before".
-    const match = new RegExp(`\\b${apbEscapeRegExp(cue)}\\s+([^,.;:]+)`, 'i').exec(text);
-    if (!match) continue;
-    const phrase = match[1].trim().split(/\s+/).slice(0, 5).join(' ').trim();
-    if (phrase.length < 3) continue;
-    if (APB_AUDIENCE_REJECT.includes(phrase.toLowerCase())) continue;
-    return phrase;
+    // Every occurrence of the cue is tried, not just the first. A brief can
+    // easily say "write this for me ... for homeowners", where the first
+    // capture is rejected filler and the second is the real audience.
+    // Leading \b only: "audience:" ends in a colon, where a trailing \b would
+    // not match. The \b before the cue is what stops "for" firing inside
+    // "before".
+    const pattern = new RegExp(`\\b${apbEscapeRegExp(cue)}\\s+([^,.;:]+)`, 'gi');
+    for (const match of text.matchAll(pattern)) {
+      const words = match[1].trim().split(/\s+/);
+      const phrase = words.slice(0, 5).join(' ').trim();
+      if (phrase.length < 3) continue;
+      // Reject-checking the leading word, not the whole phrase, is what
+      // catches a run-on capture: with no punctuation between two
+      // occurrences of the same cue (e.g. "for me and for us"), the greedy
+      // capture swallows both, but the phrase still opens on filler.
+      if (APB_AUDIENCE_REJECT.includes(words[0].toLowerCase())) continue;
+      return phrase;
+    }
   }
   return '';
 }

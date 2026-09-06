@@ -21,6 +21,11 @@
 
 * { box-sizing: border-box; }
 
+/* Author-origin `display` on a class beats the user-agent [hidden] rule, so
+   the attribute silently stops working. This restores it for every element
+   rather than patching the one that broke. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   padding: 0 1rem 4rem;
