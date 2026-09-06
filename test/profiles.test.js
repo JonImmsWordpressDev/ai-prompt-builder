@@ -91,3 +91,20 @@ test('nonEmptyBlocks ignores blank and whitespace-only values', () => {
 test('nonEmptyBlocks tolerates a null profile', () => {
   assert.deepEqual(apbNonEmptyBlocks(null), []);
 });
+
+test('makeProfile handles null blocks without throwing', () => {
+  const p = apbMakeProfile({
+    id: 'p_1',
+    name: 'Test',
+    blocks: [null],
+  });
+  assert.equal(p.blocks.length, 1);
+  assert.deepEqual(p.blocks[0], { label: '', value: '' });
+});
+
+test('validateProfile rejects invalid blocks without throwing', () => {
+  const p = { ...apbMakeProfile({ id: 'p_1', name: 'Test' }), blocks: [null] };
+  const r = apbValidateProfile(p);
+  assert.equal(r.ok, false);
+  assert.ok(r.errors.some((e) => e.includes('blocks[0]')));
+});

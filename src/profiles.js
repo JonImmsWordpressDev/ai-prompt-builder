@@ -8,8 +8,8 @@ export function apbMakeProfile(fields) {
     name: typeof f.name === 'string' ? f.name : '',
     role: typeof f.role === 'string' ? f.role : '',
     blocks: Array.isArray(f.blocks) ? f.blocks.map((b) => ({
-      label: typeof b.label === 'string' ? b.label : '',
-      value: typeof b.value === 'string' ? b.value : '',
+      label: (b && typeof b.label === 'string') ? b.label : '',
+      value: (b && typeof b.value === 'string') ? b.value : '',
     })) : [],
     defaultOutputFormat: typeof f.defaultOutputFormat === 'string' ? f.defaultOutputFormat : '',
     updatedAt: typeof f.updatedAt === 'string' ? f.updatedAt : '',
