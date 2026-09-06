@@ -7,6 +7,7 @@ import {
   APB_KEYS, apbLoad, apbSave, apbGenerateId, apbNowIso,
   apbStorageAvailable, apbStarterProfiles,
 } from './storage.js';
+import { apbPolishAvailability, apbPolishPrompt, APB_POLISH_MODEL } from './polish.js';
 
 const APB_EMPTY_TASK = {
   goal: '', detail: '', constraints: '', doneWhen: '', outputFormat: '', roleOverride: '',
@@ -394,6 +395,74 @@ function apbBoot() {
   apbWireDelegation();
   apbWireImport();
   apbWireSettings();
+}
+
+function apbRefreshPolishButton() {
+  const button = apbEl('apb-polish-btn');
+  if (!button) return;
+  const availability = apbPolishAvailability();
+  button.disabled = !availability.ok || !apbState.lastAssembled;
+  button.title = availability.ok
+    ? `Rewrite with ${APB_POLISH_MODEL}`
+    : availability.reason;
+}
+
+async function apbRunPolish() {
+  const availability = apbPolishAvailability();
+  if (!availability.ok) {
+    apbSetStatus(availability.reason, true);
+    return;
+  }
+  const button = apbEl('apb-polish-btn');
+  button.disabled = true;
+  apbSetStatus(`Polishing with ${APB_POLISH_MODEL}...`, false);
+  try {
+    const settings = apbLoad(APB_KEYS.settings, {});
+    const polished = await apbPolishPrompt(apbState.lastAssembled, settings.apiKey);
+    apbState.polished = polished;
+    apbRenderOutputPane();
+    apbSetStatus('Polished. Undo restores the assembled version.', false);
+  } catch (err) {
+    apbSetStatus(`Polish failed, your prompt is unchanged. ${err.message}`, true);
+  } finally {
+    apbRefreshPolishButton();
+  }
+}
+
+function apbWireSettings() {
+  const dialog = apbEl('apb-settings-dialog');
+  const settings = apbLoad(APB_KEYS.settings, {});
+
+  dialog.innerHTML = `
+    <form method="dialog" class="apb-settings">
+      <h2>Settings</h2>
+      <label class="apb-field">Anthropic API key
+        <input type="password" id="apb-api-key" value="${apbEscape(settings.apiKey || '')}" placeholder="sk-ant-...">
+      </label>
+      <p class="apb-warn">
+        This key is stored in this browser's local storage on this device, unencrypted.
+        Anyone with access to this browser profile can read it. Leave it blank to use the
+        tool without Polish, which changes nothing else.
+      </p>
+      <p class="apb-muted">Polish uses ${apbEscape(APB_POLISH_MODEL)}. It is the only network call this tool ever makes.</p>
+      <div class="apb-row apb-row-end">
+        <button type="button" data-act="settings-clear">Clear key</button>
+        <button value="save">Save</button>
+      </div>
+    </form>`;
+
+  apbEl('apb-settings-btn').addEventListener('click', () => dialog.showModal());
+
+  dialog.addEventListener('click', (event) => {
+    if (event.target.dataset.act !== 'settings-clear') return;
+    apbEl('apb-api-key').value = '';
+  });
+
+  dialog.addEventListener('close', () => {
+    const key = apbEl('apb-api-key').value.trim();
+    apbSave(APB_KEYS.settings, { ...apbLoad(APB_KEYS.settings, {}), apiKey: key });
+    apbRefreshPolishButton();
+  });
 }
 
 document.addEventListener('DOMContentLoaded', apbBoot);
