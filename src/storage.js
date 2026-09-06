@@ -61,6 +61,12 @@ export function apbSave(key, value) {
   }
 }
 
+// Starter profiles ship with empty block values. The labels are the scaffold;
+// the user supplies the content. This is load-bearing: non-empty placeholder text
+// would be counted as real content by apbNonEmptyBlocks, cause gap rules to
+// misfire (e.g., "Testing: ..." matches verification rule, "Done when" matches
+// done rule), and get transmitted to Claude as project facts if unedited.
+// role and defaultOutputFormat are real values, not placeholders, and stay filled.
 export function apbStarterProfiles() {
   return [
     apbMakeProfile({
@@ -68,12 +74,12 @@ export function apbStarterProfiles() {
       name: 'Example: web app codebase',
       role: 'senior engineer working in an existing codebase',
       blocks: [
-        { label: 'Stack', value: 'Describe the language, framework and versions.' },
-        { label: 'Repo', value: 'Where the code lives and how it is laid out.' },
-        { label: 'Testing', value: 'The command to run tests, and to run one test.' },
-        { label: 'Conventions', value: 'Branching, review and commit rules.' },
-        { label: 'Do not touch', value: 'Paths that are off limits.' },
-        { label: 'Done when', value: 'What has to be true before this is finished.' },
+        { label: 'Stack', value: '' },
+        { label: 'Repo', value: '' },
+        { label: 'Testing', value: '' },
+        { label: 'Conventions', value: '' },
+        { label: 'Do not touch', value: '' },
+        { label: 'Done when', value: '' },
       ],
       defaultOutputFormat: 'Plan first, wait for my approval, then implement.',
       updatedAt: apbNowIso(),
@@ -83,10 +89,10 @@ export function apbStarterProfiles() {
       name: 'Example: writing project',
       role: 'editor who matches an established voice',
       blocks: [
-        { label: 'Audience', value: 'Who reads this and what they already know.' },
-        { label: 'Voice', value: 'The rules the writing has to follow.' },
-        { label: 'Never do', value: 'Words, formats and habits to avoid.' },
-        { label: 'Done when', value: 'What a finished piece looks like.' },
+        { label: 'Audience', value: '' },
+        { label: 'Voice', value: '' },
+        { label: 'Never do', value: '' },
+        { label: 'Done when', value: '' },
       ],
       defaultOutputFormat: 'Draft in full, then list what you were unsure about.',
       updatedAt: apbNowIso(),
