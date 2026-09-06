@@ -69,6 +69,15 @@ test('rejects a bundle with a duplicate declaration the name collector cannot se
   );
 });
 
+test('rejects a duplicate introduced by destructuring, which the regex collector cannot see at all', () => {
+  const bundle = 'const apbThing = 1;\nconst { apbThing } = someObject;\n';
+  assert.deepEqual(apbCollectTopLevelNames(bundle), ['apbThing']);
+  assert.throws(
+    () => apbAssertBundleCompiles(bundle),
+    /not valid JavaScript/,
+  );
+});
+
 test('accepts a normal concatenated bundle without throwing', () => {
   assert.doesNotThrow(() => apbAssertBundleCompiles('const a = 1;\nfunction f() { return a; }\n'));
 });
