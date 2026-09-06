@@ -49,10 +49,25 @@ export const APB_GAP_RULES = [
     message: 'No definition of done. Claude will ask what finished means.',
   },
   {
+    // requiresProfile: true means this rule is skipped entirely when there
+    // is no profile (see apbAnalyzeGaps below), rather than firing against
+    // a null profile. no-profile already covers that case at high severity,
+    // so this only ever needs to describe a profile that exists but is
+    // lacking.
+    //
+    // The `>= 3` guard exists so this doesn't double-charge the same
+    // underlying fact as thin-profile: a profile with fewer than three
+    // filled blocks has nothing in it yet, and thin-profile already says
+    // so. Without the guard, selecting a nearly-empty starter profile costs
+    // 20 for thin-profile AND 20 for no-verification while only removing
+    // the 20 for no-profile, so the score goes DOWN when a user follows the
+    // tool's own advice and picks a profile. Once a profile has enough
+    // content to plausibly hold a verification command (three-plus filled
+    // blocks), it's fair to charge separately for actually missing one.
     id: 'no-verification',
     severity: 'high',
     requiresProfile: true,
-    test: (p) => !apbBlockMatches(p, /\b(test|verif|lint)/i),
+    test: (p) => apbNonEmptyBlocks(p).length >= 3 && !apbBlockMatches(p, /\b(test|verif|lint)/i),
     message: 'Profile names no test, lint or verification command. Claude will ask how to check its work.',
   },
   {
@@ -111,5 +126,11 @@ export function apbAnalyzeGaps(profile, task) {
   }
   gaps.sort((a, b) => APB_SEVERITY_RANK[a.severity] - APB_SEVERITY_RANK[b.severity]);
   const penalty = gaps.reduce((sum, g) => sum + APB_SEVERITY_WEIGHT[g.severity], 0);
+  // thin-profile/no-verification and no-goal/thin-goal are each mutually
+  // exclusive by construction, so the worst reachable penalty today is 85,
+  // not the 100+ needed to actually hit this clamp (see
+  // "the worst reachable score is 15 given current weights" in
+  // test/gapcheck.test.js). The clamp is kept anyway as a guard against a
+  // future rule or weight change making triple digits reachable again.
   return { score: Math.max(0, 100 - penalty), gaps };
 }

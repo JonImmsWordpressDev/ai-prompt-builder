@@ -6,6 +6,7 @@ import {
   APB_GAP_RULES,
   apbAnalyzeGaps,
 } from '../src/gapcheck.js';
+import { apbStarterProfiles } from '../src/storage.js';
 
 const fullProfile = {
   schemaVersion: 1, id: 'p_1', name: 'ADO', role: 'engineer',
@@ -146,15 +147,38 @@ test('an empty task with no profile scores 15, not zero', () => {
   assert.equal(r.score, 15);
 });
 
-test('score floors at zero and never goes negative', () => {
+test('score is always between 0 and 100 inclusive, across a spread of inputs', () => {
+  const thin = {
+    schemaVersion: 1, id: 'p_1', name: 'Bare', role: '',
+    blocks: [{ label: 'Note', value: 'x' }], defaultOutputFormat: '', updatedAt: '',
+  };
+  const cases = [
+    apbAnalyzeGaps(null, {}),
+    apbAnalyzeGaps(thin, {}),
+    apbAnalyzeGaps(fullProfile, fullTask),
+    apbAnalyzeGaps(fullProfile, {}),
+    apbAnalyzeGaps(null, fullTask),
+  ];
+  for (const r of cases) {
+    assert.ok(r.score >= 0 && r.score <= 100, `score ${r.score} out of range`);
+  }
+});
+
+test('the worst reachable score is 15 given current weights', () => {
+  // A fact about today's rules and weights, not a requirement: name it so a
+  // future change to either is a useful signal, not a mystery. thin-profile
+  // (needs fewer than three filled blocks) and no-verification (needs three
+  // or more) are mutually exclusive by construction, as are no-goal and
+  // thin-goal, so the worst reachable penalty is 85 (no-profile, no-goal,
+  // no-done-when, no-detail, no-output-format, no-constraints), not the 105+
+  // that would actually reach the Math.max(0, ...) clamp in apbAnalyzeGaps.
+  // See the comment there.
   const bare = {
     schemaVersion: 1, id: 'p_1', name: 'Bare', role: '',
     blocks: [{ label: 'Note', value: 'x' }], defaultOutputFormat: '', updatedAt: '',
   };
-  // thin-profile, no-goal, no-done-when, no-verification (80)
-  // + no-detail, no-output-format (20) + no-constraints (5) = 105, clamped to 0.
   const r = apbAnalyzeGaps(bare, {});
-  assert.equal(r.score, 0);
+  assert.equal(r.score, 15);
   assert.ok(r.gaps.length > 0);
 });
 
@@ -167,4 +191,29 @@ test('gaps are ordered high, then medium, then low', () => {
 
 test('analysis is deterministic', () => {
   assert.deepEqual(apbAnalyzeGaps(fullProfile, fullTask), apbAnalyzeGaps(fullProfile, fullTask));
+});
+
+test('no-verification does not fire on a thin profile, thin-profile already covers it', () => {
+  const thin = { ...fullProfile, blocks: [{ label: 'Stack', value: 'React 18' }] };
+  assert.ok(idsOf(apbAnalyzeGaps(thin, fullTask)).includes('thin-profile'));
+  assert.equal(idsOf(apbAnalyzeGaps(thin, fullTask)).includes('no-verification'), false);
+});
+
+test('no-verification still fires on a profile with three filled blocks and no verification command', () => {
+  const p = { ...fullProfile, blocks: [{ label: 'Stack', value: 'React' }, { label: 'Repo', value: 'monorepo' }, { label: 'Done when', value: 'shipped' }] };
+  assert.equal(idsOf(apbAnalyzeGaps(p, fullTask)).includes('thin-profile'), false);
+  assert.ok(idsOf(apbAnalyzeGaps(p, fullTask)).includes('no-verification'));
+});
+
+test('selecting a seeded starter profile scores higher than no profile at all', () => {
+  // Regression guard for the score inversion: a starter ships with every
+  // block empty, so thin-profile fires, and no-verification must not also
+  // fire on top of it, or picking a profile scores worse than picking none.
+  const starter = apbStarterProfiles()[0];
+  const noProfileScore = apbAnalyzeGaps(null, {}).score;
+  const starterScore = apbAnalyzeGaps(starter, {}).score;
+  assert.ok(
+    starterScore > noProfileScore,
+    `expected selecting a starter (${starterScore}) to score higher than no profile (${noProfileScore})`,
+  );
 });

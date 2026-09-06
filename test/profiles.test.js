@@ -182,20 +182,24 @@ test('merge lets the incoming copy win on a matching id and preserves order', ()
   assert.equal(r.profiles[1].name, 'Keep Me');
 });
 
-test('merge collapses within-payload duplicate ids, last occurrence winning', () => {
+test('merge rejects a payload with a repeated id and leaves existing untouched', () => {
+  const existing = [mk('p_9', 'Untouched')];
   const text = apbExportProfiles([mk('p_1', 'First'), mk('p_1', 'Second')]);
-  const r = apbImportProfiles(text, [], 'merge');
-  assert.equal(r.ok, true);
-  assert.deepEqual(r.profiles.map((p) => p.id), ['p_1']);
-  assert.equal(r.profiles[0].name, 'Second');
+  const r = apbImportProfiles(text, existing, 'merge');
+  assert.equal(r.ok, false);
+  assert.ok(r.error.includes('repeats id'));
+  assert.ok(r.error.includes('p_1'));
+  assert.deepEqual(existing, [mk('p_9', 'Untouched')]);
 });
 
-test('replace collapses within-payload duplicate ids, last occurrence winning', () => {
+test('replace rejects a payload with a repeated id and leaves existing untouched', () => {
+  const existing = [mk('p_9', 'Untouched')];
   const text = apbExportProfiles([mk('p_1', 'First'), mk('p_1', 'Second')]);
-  const r = apbImportProfiles(text, [], 'replace');
-  assert.equal(r.ok, true);
-  assert.deepEqual(r.profiles.map((p) => p.id), ['p_1']);
-  assert.equal(r.profiles[0].name, 'Second');
+  const r = apbImportProfiles(text, existing, 'replace');
+  assert.equal(r.ok, false);
+  assert.ok(r.error.includes('repeats id'));
+  assert.ok(r.error.includes('p_1'));
+  assert.deepEqual(existing, [mk('p_9', 'Untouched')]);
 });
 
 test('ordinary merge behaviour is unchanged: order preserved, incoming wins on match, new ones appended', () => {

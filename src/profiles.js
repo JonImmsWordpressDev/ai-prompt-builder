@@ -47,6 +47,10 @@ export function apbNonEmptyBlocks(profile) {
   return profile.blocks.filter((b) => b && typeof b.value === 'string' && b.value.trim() !== '');
 }
 
+// Indexed by from-version: APB_MIGRATIONS[1] migrates a version 1 payload to
+// version 2, APB_MIGRATIONS[2] migrates version 2 to version 3, and so on.
+// Getting this backwards would silently corrupt every import that crosses
+// that version boundary.
 const APB_MIGRATIONS = [];
 
 export function apbExportProfiles(profiles) {
@@ -107,38 +111,38 @@ export function apbImportProfiles(text, existing, mode) {
     return { ok: false, error: 'File contains no profiles array.' };
   }
 
+  // Ids must stay unique because they are how profiles are selected, updated
+  // and deleted: a duplicate makes the second record unreachable and lets
+  // edits land on the wrong one. A single payload can contain two profiles
+  // sharing an id (hand-edited export, concatenated files, and so on).
+  // Reject the whole import in that case, the same all-or-nothing behaviour
+  // every other failure mode in this function already has, rather than
+  // silently dropping one of the two profiles the user doesn't know they
+  // are losing.
   const normalised = [];
+  const seenIds = new Set();
   for (let i = 0; i < incoming.length; i += 1) {
     const candidate = apbMakeProfile(incoming[i]);
     const check = apbValidateProfile(candidate);
     if (!check.ok) {
       return { ok: false, error: `Profile ${i + 1} is invalid: ${check.errors.join(', ')}. Nothing was imported.` };
     }
+    if (seenIds.has(candidate.id)) {
+      return { ok: false, error: `Profile ${i + 1} repeats id "${candidate.id}". Nothing was imported.` };
+    }
+    seenIds.add(candidate.id);
     normalised.push(candidate);
   }
 
-  // Ids must stay unique because they are how profiles are selected, updated
-  // and deleted: a duplicate makes the second record unreachable and lets
-  // edits land on the wrong one. A single payload can contain two profiles
-  // sharing an id (hand-edited export, concatenated files, and so on), so
-  // collapse those here, before this list is used for anything else. The
-  // last occurrence wins, which matches the rule below that an incoming
-  // profile beats an existing one on a matching id.
-  const byId = new Map();
-  for (const p of normalised) byId.set(p.id, p);
-  const uniqueIncoming = [...byId.values()];
+  if (mode === 'replace') return { ok: true, profiles: normalised };
 
-  if (mode === 'replace') return { ok: true, profiles: uniqueIncoming };
-
+  const byId = new Map(normalised.map((p) => [p.id, p]));
   const merged = (Array.isArray(existing) ? existing : []).map(
     (p) => (byId.has(p.id) ? byId.get(p.id) : p),
   );
   const existingIds = new Set(merged.map((p) => p.id));
-  for (const p of uniqueIncoming) {
-    if (!existingIds.has(p.id)) {
-      merged.push(p);
-      existingIds.add(p.id);
-    }
+  for (const p of normalised) {
+    if (!existingIds.has(p.id)) merged.push(p);
   }
   return { ok: true, profiles: merged };
 }

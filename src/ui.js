@@ -19,6 +19,18 @@ const apbState = {
   task: { ...APB_EMPTY_TASK },
   lastAssembled: '',
   polished: '',
+  // The prompt apbState.polished was made from. apbRenderOutputPane compares
+  // this against the freshly assembled prompt to decide whether the
+  // displayed polish is still current (see the comment there). That
+  // comparison relies on apbAssemblePrompt being deterministic for
+  // unchanged input, which makes that determinism load-bearing for this
+  // interface, not just for the golden-output tests. In particular the
+  // assembler must not read profile.id or profile.updatedAt, since the
+  // input handler stamps updatedAt on every keystroke (see the profile
+  // branch below): if the assembler read it, this comparison would never
+  // match and a polish result would never survive a re-render.
+  // test/assembler.test.js:127 ("assembly is deterministic") is the guard
+  // for this; do not remove it as redundant.
   polishedSource: '',
 };
 
@@ -321,6 +333,9 @@ function apbWireImport() {
       apbPersist();
       apbRenderAll();
     };
+    reader.onerror = () => {
+      window.alert('Could not read that file.');
+    };
     reader.readAsText(file);
     event.target.value = '';
   });
@@ -516,6 +531,15 @@ function apbWireSettings() {
   });
 
   dialog.addEventListener('close', () => {
+    // <form method="dialog"> sets dialog.returnValue to the activating
+    // button's value on submit ("save" here) and leaves it empty on Escape
+    // or a backdrop click. Only persist on an explicit Save, or the dialog's
+    // own warning about the key being stored unencrypted becomes false: a
+    // user who reads it and backs out with Escape would have it saved
+    // anyway. This also means Clear key needs a follow-up Save to take
+    // effect, which is the same missing-Cancel bug pointing the other way,
+    // not a new one.
+    if (dialog.returnValue !== 'save') return;
     const key = apbEl('apb-api-key').value.trim();
     apbSave(APB_KEYS.settings, { ...apbLoad(APB_KEYS.settings, {}), apiKey: key });
     apbRefreshPolishButton();

@@ -12,7 +12,10 @@ then assembles it with the task that changes.
 
 ## Quick start
 
-Open `dist/prompt-builder.html` in a browser. That's the whole tool.
+    npm run build
+
+Then open `dist/prompt-builder.html` in a browser. That's the whole
+tool.
 
 It runs from a local file, a USB stick, or a URL, with no network
 access required for anything except the optional Polish step below.
@@ -40,7 +43,8 @@ Blocks are free-form label and value pairs, not fixed fields, so a
 codebase and a writing project model the same way. Two starter
 profiles ship as editable examples, seeded once on first run. Export
 and import move profiles between machines as a JSON file. Nothing
-syncs on its own, and nothing leaves your browser unless you export it.
+syncs on its own, and nothing leaves your browser unless you export it
+or use Polish.
 
 ## The gap check names what Claude would otherwise ask about
 
