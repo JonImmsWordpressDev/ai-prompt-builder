@@ -23,6 +23,7 @@
 - Severity weights are exactly high 20, medium 10, low 5. Score starts at 100 and floors at 0.
 - `APB_SCHEMA_VERSION` is `1`.
 - Never commit `dist/`. It is gitignored.
+- The test script is `node --test test/*.js`, using shell glob expansion. Do NOT use `node --test test/`: passing a bare directory works on Node 18 but fails on Node 23+, and this project's own machine runs Node 25. The glob form works on every version in range.
 
 ## File Structure
 
@@ -192,7 +193,7 @@ Expected: FAIL. Without `package.json` npm errors; once it exists, the run fails
   "scripts": {
     "dev": "node dev-server.js",
     "build": "node build.js",
-    "test": "node --test test/"
+    "test": "node --test test/*.js"
   },
   "engines": {
     "node": ">=18"
@@ -755,14 +756,14 @@ export const APB_GAP_RULES = [
     id: 'no-done-when',
     severity: 'high',
     requiresProfile: false,
-    test: (p, t) => apbToList(t && t.doneWhen).length === 0 && !apbBlockMatches(p, /done/i),
+    test: (p, t) => apbToList(t && t.doneWhen).length === 0 && !apbBlockMatches(p, /\bdone/i),
     message: 'No definition of done. Claude will ask what finished means.',
   },
   {
     id: 'no-verification',
     severity: 'high',
     requiresProfile: true,
-    test: (p) => !apbBlockMatches(p, /test|verif|lint/i),
+    test: (p) => !apbBlockMatches(p, /\b(test|verif|lint)/i),
     message: 'Profile names no test, lint or verification command. Claude will ask how to check its work.',
   },
   {
@@ -1153,6 +1154,15 @@ export function apbSave(key, value) {
   }
 }
 
+Starter blocks ship with their LABELS as the scaffold and their VALUES
+EMPTY. This is load-bearing, not a style choice. A non-empty placeholder
+value is counted by `apbNonEmptyBlocks`, and its wording trips the gap
+matchers: "The command to run tests..." matches the verification rule and
+a "Done when" label matches the done rule. Pre-filled placeholders
+therefore give an unedited profile a false pass on the two highest-severity
+profile rules, at exactly the moment the user has filled in nothing. Worse,
+they leak into the assembled prompt as though they were project facts.
+
 export function apbStarterProfiles() {
   return [
     apbMakeProfile({
@@ -1160,12 +1170,12 @@ export function apbStarterProfiles() {
       name: 'Example: web app codebase',
       role: 'senior engineer working in an existing codebase',
       blocks: [
-        { label: 'Stack', value: 'Describe the language, framework and versions.' },
-        { label: 'Repo', value: 'Where the code lives and how it is laid out.' },
-        { label: 'Testing', value: 'The command to run tests, and to run one test.' },
-        { label: 'Conventions', value: 'Branching, review and commit rules.' },
-        { label: 'Do not touch', value: 'Paths that are off limits.' },
-        { label: 'Done when', value: 'What has to be true before this is finished.' },
+        { label: 'Stack', value: '' },
+        { label: 'Repo', value: '' },
+        { label: 'Testing', value: '' },
+        { label: 'Conventions', value: '' },
+        { label: 'Do not touch', value: '' },
+        { label: 'Done when', value: '' },
       ],
       defaultOutputFormat: 'Plan first, wait for my approval, then implement.',
       updatedAt: apbNowIso(),
@@ -1175,10 +1185,10 @@ export function apbStarterProfiles() {
       name: 'Example: writing project',
       role: 'editor who matches an established voice',
       blocks: [
-        { label: 'Audience', value: 'Who reads this and what they already know.' },
-        { label: 'Voice', value: 'The rules the writing has to follow.' },
-        { label: 'Never do', value: 'Words, formats and habits to avoid.' },
-        { label: 'Done when', value: 'What a finished piece looks like.' },
+        { label: 'Audience', value: '' },
+        { label: 'Voice', value: '' },
+        { label: 'Never do', value: '' },
+        { label: 'Done when', value: '' },
       ],
       defaultOutputFormat: 'Draft in full, then list what you were unsure about.',
       updatedAt: apbNowIso(),

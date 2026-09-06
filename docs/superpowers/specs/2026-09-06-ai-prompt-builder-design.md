@@ -63,9 +63,9 @@ lint step.
 
     npm run dev      node dev-server.js       http://127.0.0.1:4518
     npm run build    node build.js            -> dist/prompt-builder.html
-    npm test         node --test test/
+    npm test         node --test test/*.js
 
-Single test: `node --test --test-name-pattern="<name>" test/`
+Single test: `node --test --test-name-pattern="<name>" test/*.js`
 
 ### Build contract
 
@@ -197,8 +197,8 @@ Version one ships these rules:
 | no-goal           | high     | goal empty                                   |
 | thin-goal         | medium   | goal non-empty but under eight words          |
 | no-detail         | medium   | detail empty                                 |
-| no-done-when      | high     | doneWhen empty and profile has no done block |
-| no-verification   | high     | no profile block label or value matching `test`, `verif` or `lint`, case-insensitive |
+| no-done-when      | high     | doneWhen empty and no profile block has a word starting `done` |
+| no-verification   | high     | no profile block where a word starts with `test`, `verif` or `lint`, case-insensitive |
 | no-constraints    | low      | constraints empty                            |
 | no-output-format  | medium   | no output format from task or profile        |
 | vague-language    | low      | goal or detail contains a hedge phrase from the list below |
@@ -309,7 +309,7 @@ Nothing in the list is a dead end and none of them lose typed input.
 
 ## Testing
 
-`node --test test/` over the pure modules only. `node:test` and
+`node --test test/*.js` over the pure modules only. `node:test` and
 `node:assert`, no framework, matching the author's existing projects.
 
 Coverage required before the work is called done:
