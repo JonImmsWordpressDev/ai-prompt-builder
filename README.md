@@ -1,75 +1,54 @@
 # AI Prompt Builder
 
-A single web page that turns a saved project profile and a short task
-into a paste-ready, XML-sectioned prompt for Claude. Nothing to
-install, no account, no sign-in.
+Type what you want in your own words. Get back a prompt worth pasting
+into Claude, ChatGPT or anything else.
 
-Every new task with an AI assistant starts with the same questions:
-what the stack is, how tests run, what counts as done, what it can't
-touch. Answering those every time wastes effort. Skip them and you get
-sloppy output. This tool stores the standing context once per project,
-then assembles it with the task that changes.
+No account, no sign-in, no API key, and nothing to install.
 
-## Quick start
-
-Open it:
+## Try it
 
 **https://jonimmswordpressdev.github.io/ai-prompt-builder/**
 
-That's the whole thing. Bookmark it and you're done.
+Bookmark it and you're done.
 
-Your profiles are saved in that browser, on that device. Nothing is
-uploaded, there is no account, and closing the tab loses nothing.
+## What it actually does
+
+Asking an AI for "a blog post about plumbers" gets you something
+generic, because you left out everything that mattered: who it's for,
+what it should sound like, how long, what finished looks like.
+
+Type the same thing here and you get a prompt that says who the AI
+should be, what you need, who it's for, and — the important bit —
+tells it to ask you first if something's missing, instead of guessing.
+
+It works out what kind of job you've described and shows you its
+guess. If it's wrong, change it with one click.
+
+Underneath your prompt sit a couple of optional suggestions. Tap one,
+type a few words, and it folds into the prompt. Ignore them and
+nothing is lost.
+
+## Nothing leaves your browser
+
+There is no server, no account, and no network request of any kind.
+Your work is saved in that browser on that device so a refresh doesn't
+lose it. Closing the tab loses nothing.
 
 ## Prefer a file you keep?
 
 Download `prompt-builder.html` from the [latest
 release](https://github.com/JonImmsWordpressDev/ai-prompt-builder/releases/latest)
 and double-click it. One file, no folder, no installer. It works with
-no internet connection, from a USB stick, or from a shared drive.
+no internet connection, from a USB stick, or from a shared drive —
+and it behaves identically to the hosted link.
 
-The one difference: Polish, described below, does not work from a
-downloaded file. Everything else does. Use the link above if you want
-Polish.
+## Used an earlier version?
 
-## Profiles are the point
-
-A profile holds what doesn't change between tasks: your stack, repo
-layout, how tests run, what not to touch, what "done" means. Write it
-once per project, reuse it on every task after that.
-
-The task form is deliberately the small part: a goal, some detail,
-constraints, and a definition of done. Everything else comes from the
-profile you selected.
-
-Blocks are free-form label and value pairs, not fixed fields, so a
-codebase and a writing project model the same way. Two starter
-profiles ship as editable examples, seeded once on first run. Export
-and import move profiles between devices as a JSON file. Nothing syncs
-on its own, and nothing leaves your browser unless you export it or
-use Polish.
-
-## The gap check names what Claude would otherwise ask about
-
-Above the preview, a completeness score and a list of gaps flag the
-things that cost you a round of back-and-forth: no definition of done,
-no test or lint command, a goal that's a few words too thin, vague
-language like "and so on". Fix what matters, ignore the rest, and copy
-anyway if you want. The score is a nudge, not a gate.
-
-## Polish is optional, and it stores your API key unencrypted
-
-Polish sends your assembled prompt to the Anthropic API and returns a
-tightened rewrite. The tool is complete without it. Leave it alone and
-nothing changes.
-
-If you add a key in Settings, it sits in your browser's local storage
-in plain text. Anyone with access to that browser profile can read it.
-Don't add a key on a shared or public machine.
-
-Polish needs the hosted link, not a downloaded file. Browsers block
-the request from a local file, and the button says so rather than
-failing silently.
+Versions before this one had an optional "Polish" feature that stored
+an Anthropic API key in your browser. That feature is gone and this
+version never reads that key — but it cannot delete it either. If you
+ever entered one, clear this site's data in your browser settings to
+remove it.
 
 ## Build it yourself
 
