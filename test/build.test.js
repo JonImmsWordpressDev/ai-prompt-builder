@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { apbStripModuleSyntax, apbCollectTopLevelNames, apbBuildHtml } from '../build.js';
+import {
+  apbStripModuleSyntax,
+  apbCollectTopLevelNames,
+  apbBuildHtml,
+  apbAssertBundleCompiles,
+} from '../build.js';
 
 test('strips single and multi-line import statements', () => {
   const out = apbStripModuleSyntax(
@@ -48,4 +53,22 @@ test('build inlines the styles and the assembler', () => {
 
 test('build is deterministic', () => {
   assert.equal(apbBuildHtml(), apbBuildHtml());
+});
+
+test('rejects a bundle where an export form the stripper cannot handle survives', () => {
+  assert.throws(
+    () => apbAssertBundleCompiles('export { apbFoo, apbBar };\n'),
+    /not valid JavaScript/,
+  );
+});
+
+test('rejects a bundle with a duplicate declaration the name collector cannot see', () => {
+  assert.throws(
+    () => apbAssertBundleCompiles('const a = 1;\nconst a = 2;\n'),
+    /not valid JavaScript/,
+  );
+});
+
+test('accepts a normal concatenated bundle without throwing', () => {
+  assert.doesNotThrow(() => apbAssertBundleCompiles('const a = 1;\nfunction f() { return a; }\n'));
 });

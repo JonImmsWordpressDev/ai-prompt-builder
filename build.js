@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 
 const APB_ROOT = dirname(fileURLToPath(import.meta.url));
 
@@ -30,6 +31,20 @@ function apbReadSrc(name) {
   return readFileSync(join(APB_ROOT, 'src', name), 'utf8');
 }
 
+export function apbAssertBundleCompiles(script) {
+  try {
+    new vm.Script(script);
+  } catch (err) {
+    throw new Error(
+      `Concatenated bundle is not valid JavaScript: ${err.message}\n`
+      + 'This usually means a module used an export form the stripper does not handle, '
+      + 'such as "export { a, b };" or "export default", or that two modules declared '
+      + 'the same top-level name. Modules must use inline "export const" or '
+      + '"export function" declarations only.',
+    );
+  }
+}
+
 export function apbBuildHtml() {
   const pkg = JSON.parse(readFileSync(join(APB_ROOT, 'package.json'), 'utf8'));
   const styles = apbReadSrc('styles.css');
@@ -51,6 +66,7 @@ export function apbBuildHtml() {
   }
 
   const script = chunks.join('\n\n');
+  apbAssertBundleCompiles(script);
   return apbReadSrc('shell.html')
     .replace('<!--INJECT:STYLES-->', `<style>\n${styles.trim()}\n</style>`)
     .replace('<!--INJECT:VERSION-->', `v${pkg.version}`)
