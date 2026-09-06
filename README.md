@@ -71,8 +71,3 @@ instead of failing silently. To use Polish, serve the built file over
 ## License
 
 MIT. See `LICENSE`.
-
-## Design spec
-
-Full architecture, data model, and acceptance criteria:
-`docs/superpowers/specs/2026-09-06-ai-prompt-builder-design.md`.
