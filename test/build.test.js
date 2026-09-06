@@ -47,7 +47,7 @@ test('build output is a complete standalone document', () => {
 test('build inlines the styles and the assembler', () => {
   const html = apbBuildHtml();
   assert.ok(html.includes('apbAssemblePrompt'));
-  assert.ok(html.includes('apbAnalyzeGaps'));
+  assert.ok(html.includes('apbBoot'));
   assert.ok(html.includes('<style>'));
 });
 

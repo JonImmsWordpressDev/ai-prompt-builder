@@ -1,7 +1,7 @@
 {
   "name": "ai-prompt-builder",
   "version": "0.1.0",
-  "description": "Assemble reusable project context and a short task description into a paste-ready, XML-sectioned prompt.",
+  "description": "Turn a plain-English brief into a finished, well-structured AI prompt. One page, no account, no API key.",
   "type": "module",
   "private": false,
   "license": "MIT",

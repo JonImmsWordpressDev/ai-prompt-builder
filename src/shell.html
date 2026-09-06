@@ -9,21 +9,29 @@
 <body>
 <header class="apb-header">
   <h1>AI Prompt Builder</h1>
-  <div class="apb-header-actions">
-    <button type="button" id="apb-settings-btn">Settings</button>
-    <span class="apb-version"><!--INJECT:VERSION--></span>
-  </div>
+  <span class="apb-version"><!--INJECT:VERSION--></span>
 </header>
 
-<p id="apb-storage-banner" class="apb-banner" hidden></p>
+<main class="apb-main">
+  <label class="apb-label" for="apb-brief">What are you trying to do?</label>
+  <textarea id="apb-brief" rows="6" spellcheck="true"
+    placeholder="I need a blog post about choosing a plumber, friendly tone, for homeowners"></textarea>
 
-<main class="apb-layout">
-  <section class="apb-pane" id="apb-profile-pane" aria-label="Project profile"></section>
-  <section class="apb-pane" id="apb-task-pane" aria-label="Task"></section>
-  <section class="apb-pane" id="apb-output-pane" aria-label="Generated prompt"></section>
+  <p class="apb-kindrow" id="apb-kindrow" hidden>
+    <label for="apb-kind">Looks like:</label>
+    <select id="apb-kind"></select>
+  </p>
+
+  <section class="apb-output" aria-label="Your prompt">
+    <div class="apb-output-head">
+      <h2>Your prompt</h2>
+      <button type="button" id="apb-copy" disabled>Copy</button>
+    </div>
+    <p class="apb-muted" id="apb-empty"></p>
+    <pre class="apb-prompt" id="apb-prompt" tabindex="0"></pre>
+    <div class="apb-nudges" id="apb-nudges"></div>
+  </section>
 </main>
-
-<dialog id="apb-settings-dialog"></dialog>
 
 <!--INJECT:SCRIPT-->
 </body>

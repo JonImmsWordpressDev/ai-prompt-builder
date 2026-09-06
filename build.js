@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const APB_ROOT = dirname(fileURLToPath(import.meta.url));
 
 export const APB_MODULE_ORDER = [
-  'profiles.js', 'assembler.js', 'gapcheck.js', 'storage.js', 'polish.js', 'ui.js',
+  'assembler.js', 'ui.js',
 ];
 
 export function apbStripModuleSyntax(source) {
