@@ -400,11 +400,23 @@ function apbBoot() {
 let apbPolishGeneration = 0;
 let apbPolishInFlight = false;
 
-// Any change that makes a currently displayed polished result stale must also
-// invalidate any Polish request still in flight, or that request will resolve
-// later and silently overwrite the newer state with a rewrite of a prompt the
-// user no longer has. Route every place that clears apbState.polished through
-// here so a future clearing site can't reopen that gap.
+// This counter and the source-text comparison in apbRunPolish are two
+// independent guards against applying a stale Polish result, and neither is
+// sufficient alone. This counter catches a change of intent that leaves the
+// assembled text byte-identical: clicking Undo mid-request touches nothing
+// else, so a text comparison could never see it. The text comparison in
+// apbRunPolish catches every mutation site that changes what gets assembled
+// (editing a block, adding or deleting one, switching or importing a
+// profile, and so on) without requiring each one to remember to bump this
+// counter, which is exactly the gap that kept reopening when this counter
+// was the only guard. Keep both. Do not delete either as redundant.
+//
+// Any change that makes a currently displayed polished result stale must
+// also invalidate any Polish request still in flight, or that request will
+// resolve later and silently overwrite the newer state with a rewrite of a
+// prompt the user no longer has. Route every place that clears
+// apbState.polished through here so a future clearing site can't reopen
+// that gap.
 function apbInvalidatePolish() {
   apbPolishGeneration += 1;
   apbState.polished = '';
@@ -429,13 +441,14 @@ async function apbRunPolish() {
   }
   apbPolishGeneration += 1;
   const generation = apbPolishGeneration;
+  const sourcePrompt = apbState.lastAssembled;
   apbPolishInFlight = true;
   apbRefreshPolishButton();
   apbSetStatus(`Polishing with ${APB_POLISH_MODEL}...`, false);
   try {
     const settings = apbLoad(APB_KEYS.settings, {});
-    const polished = await apbPolishPrompt(apbState.lastAssembled, settings.apiKey);
-    if (generation !== apbPolishGeneration) {
+    const polished = await apbPolishPrompt(sourcePrompt, settings.apiKey);
+    if (generation !== apbPolishGeneration || sourcePrompt !== apbState.lastAssembled) {
       apbSetStatus('The prompt changed while polishing, so that result was dropped.', true);
       return;
     }
@@ -443,7 +456,7 @@ async function apbRunPolish() {
     apbRenderOutputPane();
     apbSetStatus('Polished. Undo restores the assembled version.', false);
   } catch (err) {
-    if (generation !== apbPolishGeneration) {
+    if (generation !== apbPolishGeneration || sourcePrompt !== apbState.lastAssembled) {
       apbSetStatus('The prompt changed while polishing, so that result was dropped.', true);
       return;
     }
