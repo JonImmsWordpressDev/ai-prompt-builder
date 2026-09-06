@@ -285,7 +285,7 @@ button[value="save"],
   font-size: 0.85rem;
   line-height: 1.5;
   overflow: auto;
-  white-space: pre;
+  white-space: pre-wrap;
 }
 
 .apb-status {

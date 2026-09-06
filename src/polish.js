@@ -3,6 +3,7 @@ import { APB_KEYS, apbLoad } from './storage.js';
 export const APB_POLISH_MODEL = 'claude-sonnet-5';
 export const APB_POLISH_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 export const APB_POLISH_VERSION = '2023-06-01';
+export const APB_POLISH_TIMEOUT_MS = 60000;
 
 const APB_POLISH_SYSTEM = [
   'You tighten prompts. Rewrite the prompt you are given so it is clearer and more direct.',
@@ -26,6 +27,8 @@ export function apbPolishAvailability() {
 }
 
 export async function apbPolishPrompt(prompt, apiKey) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), APB_POLISH_TIMEOUT_MS);
   let response;
   try {
     response = await fetch(APB_POLISH_ENDPOINT, {
@@ -42,9 +45,15 @@ export async function apbPolishPrompt(prompt, apiKey) {
         system: APB_POLISH_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       }),
+      signal: controller.signal,
     });
   } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('The request timed out after 60 seconds. Your prompt is unchanged.');
+    }
     throw new Error(`Could not reach the API: ${err.message}`);
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!response.ok) {

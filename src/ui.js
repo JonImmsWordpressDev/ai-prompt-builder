@@ -235,6 +235,7 @@ function apbHandleAction(act, target) {
       apbCopyOutput();
       break;
     case 'undo-polish':
+      apbPolishGeneration += 1;
       apbState.polished = '';
       apbRenderOutputPane();
       break;
@@ -397,34 +398,49 @@ function apbBoot() {
   apbWireSettings();
 }
 
+let apbPolishGeneration = 0;
+let apbPolishInFlight = false;
+
 function apbRefreshPolishButton() {
   const button = apbEl('apb-polish-btn');
   if (!button) return;
   const availability = apbPolishAvailability();
-  button.disabled = !availability.ok || !apbState.lastAssembled;
-  button.title = availability.ok
-    ? `Rewrite with ${APB_POLISH_MODEL}`
-    : availability.reason;
+  button.disabled = apbPolishInFlight || !availability.ok || !apbState.lastAssembled;
+  button.title = apbPolishInFlight
+    ? `Polishing with ${APB_POLISH_MODEL}...`
+    : (availability.ok ? `Rewrite with ${APB_POLISH_MODEL}` : availability.reason);
 }
 
 async function apbRunPolish() {
+  if (apbPolishInFlight) return;
   const availability = apbPolishAvailability();
   if (!availability.ok) {
     apbSetStatus(availability.reason, true);
     return;
   }
-  const button = apbEl('apb-polish-btn');
-  button.disabled = true;
+  apbPolishGeneration += 1;
+  const generation = apbPolishGeneration;
+  apbPolishInFlight = true;
+  apbRefreshPolishButton();
   apbSetStatus(`Polishing with ${APB_POLISH_MODEL}...`, false);
   try {
     const settings = apbLoad(APB_KEYS.settings, {});
     const polished = await apbPolishPrompt(apbState.lastAssembled, settings.apiKey);
+    if (generation !== apbPolishGeneration) {
+      apbSetStatus('The prompt changed while polishing, so that result was dropped.', true);
+      return;
+    }
     apbState.polished = polished;
     apbRenderOutputPane();
     apbSetStatus('Polished. Undo restores the assembled version.', false);
   } catch (err) {
+    if (generation !== apbPolishGeneration) {
+      apbSetStatus('The prompt changed while polishing, so that result was dropped.', true);
+      return;
+    }
     apbSetStatus(`Polish failed, your prompt is unchanged. ${err.message}`, true);
   } finally {
+    apbPolishInFlight = false;
     apbRefreshPolishButton();
   }
 }
