@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const APB_ROOT = dirname(fileURLToPath(import.meta.url));
 
 export const APB_MODULE_ORDER = [
-  'detect.js', 'assembler.js', 'ui.js',
+  'detect.js', 'assembler.js', 'nudges.js', 'ui.js',
 ];
 
 export function apbStripModuleSyntax(source) {
