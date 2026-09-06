@@ -756,14 +756,14 @@ export const APB_GAP_RULES = [
     id: 'no-done-when',
     severity: 'high',
     requiresProfile: false,
-    test: (p, t) => apbToList(t && t.doneWhen).length === 0 && !apbBlockMatches(p, /done/i),
+    test: (p, t) => apbToList(t && t.doneWhen).length === 0 && !apbBlockMatches(p, /\bdone/i),
     message: 'No definition of done. Claude will ask what finished means.',
   },
   {
     id: 'no-verification',
     severity: 'high',
     requiresProfile: true,
-    test: (p) => !apbBlockMatches(p, /test|verif|lint/i),
+    test: (p) => !apbBlockMatches(p, /\b(test|verif|lint)/i),
     message: 'Profile names no test, lint or verification command. Claude will ask how to check its work.',
   },
   {

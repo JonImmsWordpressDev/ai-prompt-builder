@@ -197,8 +197,8 @@ Version one ships these rules:
 | no-goal           | high     | goal empty                                   |
 | thin-goal         | medium   | goal non-empty but under eight words          |
 | no-detail         | medium   | detail empty                                 |
-| no-done-when      | high     | doneWhen empty and profile has no done block |
-| no-verification   | high     | no profile block label or value matching `test`, `verif` or `lint`, case-insensitive |
+| no-done-when      | high     | doneWhen empty and no profile block has a word starting `done` |
+| no-verification   | high     | no profile block where a word starts with `test`, `verif` or `lint`, case-insensitive |
 | no-constraints    | low      | constraints empty                            |
 | no-output-format  | medium   | no output format from task or profile        |
 | vague-language    | low      | goal or detail contains a hedge phrase from the list below |
