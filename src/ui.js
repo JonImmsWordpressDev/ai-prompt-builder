@@ -19,6 +19,7 @@ const apbState = {
   task: { ...APB_EMPTY_TASK },
   lastAssembled: '',
   polished: '',
+  polishedSource: '',
 };
 
 function apbEl(id) { return document.getElementById(id); }
@@ -136,6 +137,22 @@ function apbRenderOutputPane() {
   const profile = apbSelectedProfile();
   const prompt = apbAssemblePrompt(profile, apbTaskForAssembly());
   apbState.lastAssembled = prompt;
+
+  // Every profile-mutation path (new, duplicate, delete, block edits and
+  // reorders, field edits, import) leaves apbState.polished set rather than
+  // calling apbInvalidatePolish itself. Chasing each of those sites was what
+  // kept reopening this bug, so instead of adding more per-site calls, check
+  // at the one place that renders: if what is currently displayed was
+  // polished from a prompt that no longer matches what the current state
+  // assembles to, drop it here. This is safe against clearing a legitimate,
+  // still-current result: apbAssemblePrompt is deterministic, so when
+  // nothing relevant has changed, the recomputed prompt is byte-identical
+  // to the captured polishedSource and this condition is false.
+  if (apbState.polished && apbState.polishedSource !== prompt) {
+    apbState.polished = '';
+    apbState.polishedSource = '';
+  }
+
   const shown = apbState.polished || prompt;
   const { score, gaps } = apbAnalyzeGaps(profile, apbTaskForAssembly());
 
@@ -420,6 +437,7 @@ let apbPolishInFlight = false;
 function apbInvalidatePolish() {
   apbPolishGeneration += 1;
   apbState.polished = '';
+  apbState.polishedSource = '';
 }
 
 function apbRefreshPolishButton() {
@@ -453,6 +471,7 @@ async function apbRunPolish() {
       return;
     }
     apbState.polished = polished;
+    apbState.polishedSource = sourcePrompt;
     apbRenderOutputPane();
     apbSetStatus('Polished. Undo restores the assembled version.', false);
   } catch (err) {

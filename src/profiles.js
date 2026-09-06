@@ -117,15 +117,28 @@ export function apbImportProfiles(text, existing, mode) {
     normalised.push(candidate);
   }
 
-  if (mode === 'replace') return { ok: true, profiles: normalised };
+  // Ids must stay unique because they are how profiles are selected, updated
+  // and deleted: a duplicate makes the second record unreachable and lets
+  // edits land on the wrong one. A single payload can contain two profiles
+  // sharing an id (hand-edited export, concatenated files, and so on), so
+  // collapse those here, before this list is used for anything else. The
+  // last occurrence wins, which matches the rule below that an incoming
+  // profile beats an existing one on a matching id.
+  const byId = new Map();
+  for (const p of normalised) byId.set(p.id, p);
+  const uniqueIncoming = [...byId.values()];
 
-  const byId = new Map(normalised.map((p) => [p.id, p]));
+  if (mode === 'replace') return { ok: true, profiles: uniqueIncoming };
+
   const merged = (Array.isArray(existing) ? existing : []).map(
     (p) => (byId.has(p.id) ? byId.get(p.id) : p),
   );
   const existingIds = new Set(merged.map((p) => p.id));
-  for (const p of normalised) {
-    if (!existingIds.has(p.id)) merged.push(p);
+  for (const p of uniqueIncoming) {
+    if (!existingIds.has(p.id)) {
+      merged.push(p);
+      existingIds.add(p.id);
+    }
   }
   return { ok: true, profiles: merged };
 }
