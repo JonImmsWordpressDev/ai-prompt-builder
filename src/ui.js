@@ -89,18 +89,25 @@ function apbRenderNudges(kind, signals) {
     return;
   }
 
-  const chips = offered.map((id) => (
-    apbState.openNudge === id
-      ? `<span class="apb-nudge-open">
+  // An answered nudge drops out of `offered` (apbOfferedNudges skips it),
+  // so the open-input branch has to be reachable from BOTH lists —
+  // otherwise a filled chip can never be reopened to edit or clear it.
+  const openInput = (id) => `<span class="apb-nudge-open">
            <label for="apb-nudge-input">${apbEscape(APB_NUDGE_DEFS[id].label)}</label>
            <input type="text" id="apb-nudge-input" data-nudge="${apbEscape(id)}"
              value="${apbEscape(apbState.nudges[id] || '')}">
-         </span>`
+         </span>`;
+
+  const chips = offered.map((id) => (
+    apbState.openNudge === id
+      ? openInput(id)
       : `<button type="button" class="apb-chip" data-open="${apbEscape(id)}">+ ${apbEscape(APB_NUDGE_DEFS[id].label)}</button>`
   ));
 
   const filled = answered.map((id) => (
-    `<button type="button" class="apb-chip apb-chip-done" data-open="${apbEscape(id)}">
+    apbState.openNudge === id
+      ? openInput(id)
+      : `<button type="button" class="apb-chip apb-chip-done" data-open="${apbEscape(id)}">
        ${apbEscape(APB_NUDGE_DEFS[id].label)}: ${apbEscape(apbState.nudges[id])}
      </button>`
   ));
