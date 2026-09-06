@@ -125,16 +125,27 @@ test('extractSignals returns all four keys, empty when absent', () => {
   );
 });
 
-test('extraction never consumes any part of the brief', () => {
-  // The non-destructive guarantee. Extraction reads; it must not
-  // return a modified brief, and every extracted fragment must still
-  // be findable in the original text.
+test('every extracted value is copied verbatim from the brief', () => {
+  // Extraction must invent nothing and reword nothing: each value it
+  // returns has to be findable in the brief exactly as returned, so an
+  // implementation that normalised or re-cased a capture fails here.
+  // The other half of the guarantee — that the brief still appears whole
+  // in the finished prompt — is asserted in test/assembler.test.js,
+  // which is the only place an assembled output exists to assert against.
   const brief = 'A friendly blog post of 800 words for homeowners, due Friday';
   const signals = apbExtractSignals(brief);
-  for (const value of Object.values(signals)) {
-    if (value) assert.ok(brief.toLowerCase().includes(value.toLowerCase().split(', ')[0]));
+  assert.deepEqual(signals, {
+    audience: 'homeowners', tone: 'friendly', length: '800 words', deadline: 'Friday',
+  });
+  for (const [key, value] of Object.entries(signals)) {
+    assert.ok(value, `${key} should have fired for this brief`);
+    // Tone joins multiple matches with ", "; check each part on its own
+    // rather than the joined string, which is not a substring of the brief.
+    for (const part of value.split(', ')) {
+      assert.ok(
+        brief.toLowerCase().includes(part.toLowerCase()),
+        `${key} returned ${JSON.stringify(part)}, which is not present in the brief`,
+      );
+    }
   }
-  // apbExtractSignals takes a string and returns an object; there is no
-  // path by which the caller's brief can be mutated.
-  assert.equal(brief, 'A friendly blog post of 800 words for homeowners, due Friday');
 });
