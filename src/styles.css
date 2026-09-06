@@ -1,0 +1,21 @@
+:root {
+  --apb-bg: #ffffff;
+  --apb-fg: #1b1b1b;
+  --apb-muted: #5f6368;
+  --apb-line: #d9dce1;
+  --apb-accent: #2f5fd0;
+  --apb-high: #b3261e;
+  --apb-medium: #9a6700;
+  --apb-low: #5f6368;
+  color-scheme: light dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: var(--apb-bg);
+  color: var(--apb-fg);
+}
+.apb-layout { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; }
+.apb-pane { padding: 16px; min-width: 0; }
+[hidden] { display: none !important; }

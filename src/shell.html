@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Prompt Builder</title>
+<!--INJECT:STYLES-->
+</head>
+<body>
+<header class="apb-header">
+  <h1>AI Prompt Builder</h1>
+  <div class="apb-header-actions">
+    <button type="button" id="apb-settings-btn">Settings</button>
+    <span class="apb-version"><!--INJECT:VERSION--></span>
+  </div>
+</header>
+
+<p id="apb-storage-banner" class="apb-banner" hidden></p>
+
+<main class="apb-layout">
+  <section class="apb-pane" id="apb-profile-pane" aria-label="Project profile"></section>
+  <section class="apb-pane" id="apb-task-pane" aria-label="Task"></section>
+  <section class="apb-pane" id="apb-output-pane" aria-label="Generated prompt"></section>
+</main>
+
+<dialog id="apb-settings-dialog"></dialog>
+
+<!--INJECT:SCRIPT-->
+</body>
+</html>
