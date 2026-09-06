@@ -96,6 +96,26 @@ test('no-verification matches on label or value, case-insensitively', () => {
   assert.ok(idsOf(apbAnalyzeGaps(neither, fullTask)).includes('no-verification'));
 });
 
+test('no-done-when uses word boundary to avoid false suppressions on "abandoned" or "undone"', () => {
+  const abandoned = { ...fullProfile, blocks: [{ label: 'Context', value: 'abandoned monorepo' }, { label: 'Stack', value: 'React' }, { label: 'Testing', value: 'npm test' }] };
+  assert.ok(idsOf(apbAnalyzeGaps(abandoned, { ...fullTask, doneWhen: [] })).includes('no-done-when'));
+  const doneLabel = { ...fullProfile, blocks: [{ label: 'Done when', value: 'shipped' }, { label: 'Stack', value: 'React' }, { label: 'Testing', value: 'npm test' }] };
+  assert.equal(idsOf(apbAnalyzeGaps(doneLabel, { ...fullTask, doneWhen: [] })).includes('no-done-when'), false);
+  const doneUnderscored = { ...fullProfile, blocks: [{ label: 'done_when', value: 'shipped' }, { label: 'Stack', value: 'React' }, { label: 'Testing', value: 'npm test' }] };
+  assert.equal(idsOf(apbAnalyzeGaps(doneUnderscored, { ...fullTask, doneWhen: [] })).includes('no-done-when'), false);
+});
+
+test('no-verification uses word boundary to avoid false suppressions on "latest" or "contest"', () => {
+  const latest = { ...fullProfile, blocks: [{ label: 'Stack', value: 'latest release' }, { label: 'Repo', value: 'monorepo' }, { label: 'Done when', value: 'shipped' }] };
+  assert.ok(idsOf(apbAnalyzeGaps(latest, fullTask)).includes('no-verification'));
+  const npmTest = { ...fullProfile, blocks: [{ label: 'Test', value: 'npm test' }, { label: 'Stack', value: 'React' }, { label: 'Repo', value: 'monorepo' }] };
+  assert.equal(idsOf(apbAnalyzeGaps(npmTest, fullTask)).includes('no-verification'), false);
+  const testing = { ...fullProfile, blocks: [{ label: 'Testing', value: 'mocha' }, { label: 'Stack', value: 'React' }, { label: 'Repo', value: 'monorepo' }] };
+  assert.equal(idsOf(apbAnalyzeGaps(testing, fullTask)).includes('no-verification'), false);
+  const verify = { ...fullProfile, blocks: [{ label: 'Check', value: 'verify the build' }, { label: 'Stack', value: 'React' }, { label: 'Repo', value: 'monorepo' }] };
+  assert.equal(idsOf(apbAnalyzeGaps(verify, fullTask)).includes('no-verification'), false);
+});
+
 test('no-constraints fires on an empty constraint list', () => {
   assert.ok(idsOf(apbAnalyzeGaps(fullProfile, { ...fullTask, constraints: [] })).includes('no-constraints'));
 });
