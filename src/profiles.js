@@ -46,3 +46,76 @@ export function apbNonEmptyBlocks(profile) {
   if (!profile || !Array.isArray(profile.blocks)) return [];
   return profile.blocks.filter((b) => b && typeof b.value === 'string' && b.value.trim() !== '');
 }
+
+const APB_MIGRATIONS = [];
+
+export function apbExportProfiles(profiles) {
+  const list = Array.isArray(profiles) ? profiles : [];
+  return JSON.stringify({ schemaVersion: APB_SCHEMA_VERSION, profiles: list }, null, 2);
+}
+
+export function apbMigratePayload(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return { ok: false, error: 'File is not a profile export.' };
+  }
+  const version = payload.schemaVersion;
+  if (typeof version !== 'number' || !Number.isFinite(version)) {
+    return { ok: false, error: 'File has no usable schemaVersion.' };
+  }
+  if (version > APB_SCHEMA_VERSION) {
+    return {
+      ok: false,
+      error: `File uses schema version ${version}, but this build understands version ${APB_SCHEMA_VERSION}. Update the tool and try again.`,
+    };
+  }
+  let current = payload;
+  for (let v = version; v < APB_SCHEMA_VERSION; v += 1) {
+    const migrate = APB_MIGRATIONS[v];
+    if (typeof migrate !== 'function') {
+      return { ok: false, error: `No migration from schema version ${v}.` };
+    }
+    current = migrate(current);
+  }
+  return { ok: true, payload: { ...current, schemaVersion: APB_SCHEMA_VERSION } };
+}
+
+export function apbImportProfiles(text, existing, mode) {
+  if (mode !== 'merge' && mode !== 'replace') {
+    return { ok: false, error: `Unknown import mode "${mode}".` };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (err) {
+    return { ok: false, error: `File is not valid JSON: ${err.message}` };
+  }
+  const migrated = apbMigratePayload(parsed);
+  if (!migrated.ok) return migrated;
+
+  const incoming = migrated.payload.profiles;
+  if (!Array.isArray(incoming)) {
+    return { ok: false, error: 'File contains no profiles array.' };
+  }
+
+  const normalised = [];
+  for (let i = 0; i < incoming.length; i += 1) {
+    const candidate = apbMakeProfile(incoming[i]);
+    const check = apbValidateProfile(candidate);
+    if (!check.ok) {
+      return { ok: false, error: `Profile ${i + 1} is invalid: ${check.errors.join(', ')}. Nothing was imported.` };
+    }
+    normalised.push(candidate);
+  }
+
+  if (mode === 'replace') return { ok: true, profiles: normalised };
+
+  const byId = new Map(normalised.map((p) => [p.id, p]));
+  const merged = (Array.isArray(existing) ? existing : []).map(
+    (p) => (byId.has(p.id) ? byId.get(p.id) : p),
+  );
+  const existingIds = new Set(merged.map((p) => p.id));
+  for (const p of normalised) {
+    if (!existingIds.has(p.id)) merged.push(p);
+  }
+  return { ok: true, profiles: merged };
+}

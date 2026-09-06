@@ -6,6 +6,11 @@ import {
   apbValidateProfile,
   apbNonEmptyBlocks,
 } from '../src/profiles.js';
+import {
+  apbExportProfiles,
+  apbImportProfiles,
+  apbMigratePayload,
+} from '../src/profiles.js';
 
 test('schema version is 1', () => {
   assert.equal(APB_SCHEMA_VERSION, 1);
@@ -107,4 +112,98 @@ test('validateProfile rejects invalid blocks without throwing', () => {
   const r = apbValidateProfile(p);
   assert.equal(r.ok, false);
   assert.ok(r.errors.some((e) => e.includes('blocks[0]')));
+});
+
+const mk = (id, name) => apbMakeProfile({ id, name });
+
+test('export produces the agreed envelope, pretty printed', () => {
+  const text = apbExportProfiles([mk('p_1', 'ADO')]);
+  const parsed = JSON.parse(text);
+  assert.equal(parsed.schemaVersion, 1);
+  assert.equal(parsed.profiles.length, 1);
+  assert.ok(text.includes('\n  '), 'should be indented');
+});
+
+test('export is deterministic and carries no timestamp', () => {
+  const a = apbExportProfiles([mk('p_1', 'ADO')]);
+  const b = apbExportProfiles([mk('p_1', 'ADO')]);
+  assert.equal(a, b);
+  assert.equal(a.includes('exportedAt'), false);
+});
+
+test('export then import round-trips to an identical array', () => {
+  const original = [
+    apbMakeProfile({ id: 'p_1', name: 'ADO', role: 'engineer', blocks: [{ label: 'Stack', value: 'React' }] }),
+    mk('p_2', 'Freelance WP'),
+  ];
+  const result = apbImportProfiles(apbExportProfiles(original), [], 'replace');
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.profiles, original);
+});
+
+test('import rejects unparseable text without touching existing', () => {
+  const existing = [mk('p_1', 'ADO')];
+  const r = apbImportProfiles('{not json', existing, 'replace');
+  assert.equal(r.ok, false);
+  assert.ok(r.error.length > 0);
+  assert.deepEqual(existing, [mk('p_1', 'ADO')]);
+});
+
+test('import rejects a newer schema version and names both versions', () => {
+  const text = JSON.stringify({ schemaVersion: 99, profiles: [] });
+  const r = apbImportProfiles(text, [], 'replace');
+  assert.equal(r.ok, false);
+  assert.ok(r.error.includes('99'));
+  assert.ok(r.error.includes('1'));
+});
+
+test('import rejects a payload with no profiles array', () => {
+  assert.equal(apbImportProfiles(JSON.stringify({ schemaVersion: 1 }), [], 'replace').ok, false);
+});
+
+test('import is all or nothing when one profile is invalid', () => {
+  const text = JSON.stringify({
+    schemaVersion: 1,
+    profiles: [mk('p_1', 'Good'), { id: '', name: '', blocks: 'bad' }],
+  });
+  const r = apbImportProfiles(text, [], 'replace');
+  assert.equal(r.ok, false);
+  assert.ok(r.error.toLowerCase().includes('profile'));
+});
+
+test('merge lets the incoming copy win on a matching id and preserves order', () => {
+  const existing = [mk('p_1', 'Old One'), mk('p_2', 'Keep Me')];
+  const text = apbExportProfiles([mk('p_1', 'New One'), mk('p_3', 'Brand New')]);
+  const r = apbImportProfiles(text, existing, 'merge');
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.profiles.map((p) => p.id), ['p_1', 'p_2', 'p_3']);
+  assert.equal(r.profiles[0].name, 'New One');
+  assert.equal(r.profiles[1].name, 'Keep Me');
+});
+
+test('replace discards everything that existed', () => {
+  const r = apbImportProfiles(apbExportProfiles([mk('p_9', 'Only')]), [mk('p_1', 'Gone')], 'replace');
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.profiles.map((p) => p.id), ['p_9']);
+});
+
+test('an unknown mode is rejected rather than guessed at', () => {
+  const r = apbImportProfiles(apbExportProfiles([mk('p_1', 'X')]), [], 'sideways');
+  assert.equal(r.ok, false);
+});
+
+test('migratePayload passes the current version through unchanged', () => {
+  const payload = { schemaVersion: 1, profiles: [] };
+  const r = apbMigratePayload(payload);
+  assert.equal(r.ok, true);
+  assert.equal(r.payload.schemaVersion, 1);
+});
+
+test('migratePayload rejects a future version', () => {
+  assert.equal(apbMigratePayload({ schemaVersion: 2, profiles: [] }).ok, false);
+});
+
+test('migratePayload rejects a missing or non-numeric version', () => {
+  assert.equal(apbMigratePayload({ profiles: [] }).ok, false);
+  assert.equal(apbMigratePayload({ schemaVersion: 'one', profiles: [] }).ok, false);
 });
