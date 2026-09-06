@@ -227,7 +227,7 @@ function apbHandleAction(act, target) {
     }
     case 'task-clear':
       apbState.task = { ...APB_EMPTY_TASK };
-      apbState.polished = '';
+      apbInvalidatePolish();
       apbPersist();
       apbRenderAll();
       break;
@@ -235,8 +235,7 @@ function apbHandleAction(act, target) {
       apbCopyOutput();
       break;
     case 'undo-polish':
-      apbPolishGeneration += 1;
-      apbState.polished = '';
+      apbInvalidatePolish();
       apbRenderOutputPane();
       break;
     case 'polish':
@@ -324,7 +323,7 @@ function apbWireDelegation() {
     for (const field of APB_TASK_FIELDS) {
       if (el.id === `apb-task-${field}`) {
         apbState.task[field] = el.value;
-        apbState.polished = '';
+        apbInvalidatePolish();
         apbSave(APB_KEYS.draft, { task: apbState.task, selectedId: apbState.selectedId });
         apbRenderOutputPane();
         return;
@@ -349,7 +348,7 @@ function apbWireDelegation() {
   document.body.addEventListener('change', (event) => {
     if (event.target.id !== 'apb-profile-select') return;
     apbState.selectedId = event.target.value;
-    apbState.polished = '';
+    apbInvalidatePolish();
     apbPersist();
     apbRenderAll();
   });
@@ -400,6 +399,16 @@ function apbBoot() {
 
 let apbPolishGeneration = 0;
 let apbPolishInFlight = false;
+
+// Any change that makes a currently displayed polished result stale must also
+// invalidate any Polish request still in flight, or that request will resolve
+// later and silently overwrite the newer state with a rewrite of a prompt the
+// user no longer has. Route every place that clears apbState.polished through
+// here so a future clearing site can't reopen that gap.
+function apbInvalidatePolish() {
+  apbPolishGeneration += 1;
+  apbState.polished = '';
+}
 
 function apbRefreshPolishButton() {
   const button = apbEl('apb-polish-btn');
