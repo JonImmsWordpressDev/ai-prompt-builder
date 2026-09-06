@@ -124,6 +124,15 @@ function apbRender() {
   );
 
   apbEl('apb-kindrow').hidden = !brief;
+  // The first option is the auto slot. Label it with what detection
+  // actually guessed, so the closed select shows the guess rather than the
+  // word "Auto" — seeing the guess is the whole point of making one.
+  const autoOption = apbEl('apb-kind').options[0];
+  if (autoOption) {
+    autoOption.textContent = brief
+      ? `${APB_KIND_LABELS[apbDetectKind(apbState.brief)]} (auto)`
+      : 'Auto (detected)';
+  }
   apbEl('apb-kind').value = apbState.kindPin;
   apbEl('apb-prompt').textContent = prompt;
   apbEl('apb-copy').disabled = !prompt;
@@ -177,16 +186,23 @@ async function apbCopy() {
   }
 }
 
-function apbCommitNudge(id, value) {
+// Recording and closing are separate because a click on a different chip
+// arrives AFTER the focusout that click triggers. The answer has to be
+// saved synchronously or it is lost, while the re-render that would
+// destroy the button the click is headed for has to wait until that click
+// has been handled.
+function apbRecordNudge(id, value) {
   const text = String(value == null ? '' : value).trim();
-  // Enter commits and re-renders, which detaches the input and fires
-  // focusout on the now-orphaned node. Without this guard that second
-  // commit runs a redundant render on every accepted chip.
-  if (apbState.openNudge !== id) return;
   if (text) apbState.nudges[id] = text;
   else delete apbState.nudges[id];
-  apbState.openNudge = '';
   apbSaveDraft();
+}
+
+function apbCommitNudge(id, value) {
+  apbRecordNudge(id, value);
+  // Another chip already claimed the open slot, so it owns the render.
+  if (apbState.openNudge !== id) return;
+  apbState.openNudge = '';
   apbRender();
 }
 
@@ -230,7 +246,18 @@ function apbWire() {
 
   apbEl('apb-nudges').addEventListener('focusout', (event) => {
     if (!event.target.dataset || !event.target.dataset.nudge) return;
-    apbCommitNudge(event.target.dataset.nudge, event.target.value);
+    const id = event.target.dataset.nudge;
+    const value = event.target.value;
+    // Save now, close on the next macrotask. A click on another chip is
+    // dispatched after this focusout, and closing synchronously would
+    // rebuild the chip row and destroy the button that click was aimed at,
+    // costing the user a second click.
+    apbRecordNudge(id, value);
+    window.setTimeout(() => {
+      if (apbState.openNudge !== id) return;
+      apbState.openNudge = '';
+      apbRender();
+    }, 0);
   });
 }
 
