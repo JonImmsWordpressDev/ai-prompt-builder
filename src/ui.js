@@ -1,549 +1,288 @@
-import { apbAssemblePrompt, apbToList } from './assembler.js';
-import { apbAnalyzeGaps } from './gapcheck.js';
 import {
-  apbMakeProfile, apbExportProfiles, apbImportProfiles, apbResolveBootProfiles,
-} from './profiles.js';
-import {
-  APB_KEYS, apbLoad, apbSave, apbGenerateId, apbNowIso,
-  apbStorageAvailable, apbStarterProfiles,
-} from './storage.js';
-import { apbPolishAvailability, apbPolishPrompt, APB_POLISH_MODEL } from './polish.js';
+  APB_KINDS, APB_KIND_LABELS, apbDetectKind, apbExtractSignals,
+} from './detect.js';
+import { apbAssemblePrompt } from './assembler.js';
+import { APB_NUDGE_DEFS, apbOfferedNudges, apbNudgeContributions } from './nudges.js';
 
-const APB_EMPTY_TASK = {
-  goal: '', detail: '', constraints: '', doneWhen: '', outputFormat: '', roleOverride: '',
-};
+const APB_DRAFT_KEY = 'apb.draft.v2';
+const APB_RENDER_DELAY = 150;
+const APB_SAVE_DELAY = 400;
 
 const apbState = {
-  profiles: [],
-  selectedId: '',
-  task: { ...APB_EMPTY_TASK },
-  lastAssembled: '',
-  polished: '',
-  // The prompt apbState.polished was made from. apbRenderOutputPane compares
-  // this against the freshly assembled prompt to decide whether the
-  // displayed polish is still current (see the comment there). That
-  // comparison relies on apbAssemblePrompt being deterministic for
-  // unchanged input, which makes that determinism load-bearing for this
-  // interface, not just for the golden-output tests. In particular the
-  // assembler must not read profile.id or profile.updatedAt, since the
-  // input handler stamps updatedAt on every keystroke (see the profile
-  // branch below): if the assembler read it, this comparison would never
-  // match and a polish result would never survive a re-render.
-  // test/assembler.test.js:127 ("assembly is deterministic") is the guard
-  // for this; do not remove it as redundant.
-  polishedSource: '',
+  brief: '',
+  kindPin: '',
+  nudges: {},
+  // Which nudge chip is currently expanded into a text input. One at a
+  // time, so the row never turns into a form.
+  openNudge: '',
 };
 
-function apbEl(id) { return document.getElementById(id); }
+let apbRenderTimer = null;
+let apbSaveTimer = null;
 
-function apbEscape(text) {
-  return String(text).replace(/[&<>"']/g, (c) => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-  ));
+function apbEl(id) {
+  return document.getElementById(id);
 }
 
-function apbSelectedProfile() {
-  return apbState.profiles.find((p) => p.id === apbState.selectedId) || null;
+function apbEscape(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-function apbTaskForAssembly() {
-  const t = apbState.task;
-  return {
-    goal: t.goal,
-    detail: t.detail,
-    constraints: apbToList(t.constraints),
-    doneWhen: apbToList(t.doneWhen),
-    outputFormat: t.outputFormat,
-    roleOverride: t.roleOverride,
-  };
-}
-
-function apbPersist() {
-  apbSave(APB_KEYS.profiles, apbState.profiles);
-  apbSave(APB_KEYS.draft, { task: apbState.task, selectedId: apbState.selectedId });
-}
-
-/* ---------- profile pane ---------- */
-
-function apbRenderProfilePane() {
-  const profile = apbSelectedProfile();
-  const options = apbState.profiles
-    .map((p) => `<option value="${apbEscape(p.id)}"${p.id === apbState.selectedId ? ' selected' : ''}>${apbEscape(p.name)}</option>`)
-    .join('');
-
-  const blocks = profile
-    ? profile.blocks.map((b, i) => `
-        <div class="apb-block" data-index="${i}">
-          <input class="apb-block-label" data-index="${i}" value="${apbEscape(b.label)}" placeholder="Label, for example Stack" aria-label="Block label">
-          <textarea class="apb-block-value" data-index="${i}" rows="2" placeholder="Value" aria-label="Block value">${apbEscape(b.value)}</textarea>
-          <div class="apb-block-tools">
-            <button type="button" data-act="block-up" data-index="${i}" aria-label="Move block up">&uarr;</button>
-            <button type="button" data-act="block-down" data-index="${i}" aria-label="Move block down">&darr;</button>
-            <button type="button" data-act="block-delete" data-index="${i}" aria-label="Delete block">Delete</button>
-          </div>
-        </div>`).join('')
-    : '';
-
-  apbEl('apb-profile-pane').innerHTML = `
-    <h2>Project profile</h2>
-    <div class="apb-row">
-      <select id="apb-profile-select" aria-label="Select profile">
-        <option value="">No profile</option>${options}
-      </select>
-      <button type="button" data-act="profile-new">New</button>
-    </div>
-    ${profile ? `
-      <label class="apb-field">Name
-        <input id="apb-profile-name" value="${apbEscape(profile.name)}">
-      </label>
-      <label class="apb-field">Role
-        <input id="apb-profile-role" value="${apbEscape(profile.role)}" placeholder="senior React engineer">
-      </label>
-      <label class="apb-field">Default output format
-        <textarea id="apb-profile-output" rows="2">${apbEscape(profile.defaultOutputFormat)}</textarea>
-      </label>
-      <h3>Context blocks</h3>
-      <div id="apb-blocks">${blocks}</div>
-      <button type="button" data-act="block-add">Add block</button>
-      <div class="apb-row apb-row-end">
-        <button type="button" data-act="profile-duplicate">Duplicate</button>
-        <button type="button" data-act="profile-delete" class="apb-danger">Delete</button>
-      </div>` : '<p class="apb-muted">Create a profile to store the context you would otherwise retype every time.</p>'}
-    <div class="apb-row apb-row-end">
-      <button type="button" data-act="profiles-export">Export all</button>
-      <button type="button" data-act="profiles-import">Import</button>
-      <input type="file" id="apb-import-file" accept="application/json,.json" hidden>
-    </div>`;
-}
-
-/* ---------- task pane ---------- */
-
-function apbRenderTaskPane() {
-  const t = apbState.task;
-  apbEl('apb-task-pane').innerHTML = `
-    <h2>Task</h2>
-    <label class="apb-field">Goal
-      <input id="apb-task-goal" value="${apbEscape(t.goal)}" placeholder="One sentence saying what you want">
-    </label>
-    <label class="apb-field">Detail
-      <textarea id="apb-task-detail" rows="5" placeholder="Background, the shape of the work, anything already ruled out">${apbEscape(t.detail)}</textarea>
-    </label>
-    <label class="apb-field">Constraints, one per line
-      <textarea id="apb-task-constraints" rows="3">${apbEscape(t.constraints)}</textarea>
-    </label>
-    <label class="apb-field">Done when, one per line
-      <textarea id="apb-task-doneWhen" rows="3">${apbEscape(t.doneWhen)}</textarea>
-    </label>
-    <label class="apb-field">Output format
-      <textarea id="apb-task-outputFormat" rows="2" placeholder="Leave blank to use the profile default">${apbEscape(t.outputFormat)}</textarea>
-    </label>
-    <label class="apb-field">Role override
-      <input id="apb-task-roleOverride" value="${apbEscape(t.roleOverride)}" placeholder="Leave blank to use the profile role">
-    </label>
-    <button type="button" data-act="task-clear">Clear task</button>`;
-}
-
-/* ---------- output pane ---------- */
-
-function apbRenderOutputPane() {
-  const profile = apbSelectedProfile();
-  const prompt = apbAssemblePrompt(profile, apbTaskForAssembly());
-  apbState.lastAssembled = prompt;
-
-  // Every profile-mutation path (new, duplicate, delete, block edits and
-  // reorders, field edits, import) leaves apbState.polished set rather than
-  // calling apbInvalidatePolish itself. Chasing each of those sites was what
-  // kept reopening this bug, so instead of adding more per-site calls, check
-  // at the one place that renders: if what is currently displayed was
-  // polished from a prompt that no longer matches what the current state
-  // assembles to, drop it here. This is safe against clearing a legitimate,
-  // still-current result: apbAssemblePrompt is deterministic, so when
-  // nothing relevant has changed, the recomputed prompt is byte-identical
-  // to the captured polishedSource and this condition is false.
-  if (apbState.polished && apbState.polishedSource !== prompt) {
-    apbState.polished = '';
-    apbState.polishedSource = '';
-  }
-
-  const shown = apbState.polished || prompt;
-  const { score, gaps } = apbAnalyzeGaps(profile, apbTaskForAssembly());
-
-  const gapList = gaps.length
-    ? `<ul class="apb-gaps">${gaps.map((g) => `<li class="apb-gap apb-${g.severity}"><span class="apb-sev">${g.severity}</span> ${apbEscape(g.message)}</li>`).join('')}</ul>`
-    : '<p class="apb-ok">Nothing obvious missing. Claude should not need to ask.</p>';
-
-  apbEl('apb-output-pane').innerHTML = `
-    <h2>Prompt</h2>
-    <div class="apb-score" role="status">
-      <div class="apb-meter"><div class="apb-meter-fill" style="width:${score}%"></div></div>
-      <span>Completeness ${score}%</span>
-    </div>
-    ${gapList}
-    ${apbState.polished ? '<p class="apb-note">Showing the polished version.</p>' : ''}
-    <textarea id="apb-output" rows="20" readonly aria-label="Generated prompt">${apbEscape(shown)}</textarea>
-    <div class="apb-row apb-row-end">
-      <button type="button" data-act="copy" ${shown ? '' : 'disabled'}>Copy</button>
-      <button type="button" data-act="polish" id="apb-polish-btn">Polish</button>
-      ${apbState.polished ? '<button type="button" data-act="undo-polish">Undo polish</button>' : ''}
-    </div>
-    <p id="apb-output-status" class="apb-status" role="status"></p>`;
-
-  apbRefreshPolishButton();
-}
-
-function apbRenderAll() {
-  apbRenderProfilePane();
-  apbRenderTaskPane();
-  apbRenderOutputPane();
-}
-
-/* ---------- events ---------- */
-
-function apbUpdateProfile(mutate) {
-  const profile = apbSelectedProfile();
-  if (!profile) return;
-  mutate(profile);
-  profile.updatedAt = apbNowIso();
-  apbPersist();
-  apbRenderAll();
-}
-
-function apbHandleAction(act, target) {
-  const idx = Number(target.dataset.index);
-  switch (act) {
-    case 'profile-new': {
-      const created = apbMakeProfile({ id: apbGenerateId(), name: 'New profile', updatedAt: apbNowIso() });
-      apbState.profiles.push(created);
-      apbState.selectedId = created.id;
-      apbPersist();
-      apbRenderAll();
-      break;
-    }
-    case 'profile-duplicate': {
-      const source = apbSelectedProfile();
-      if (!source) return;
-      const copy = apbMakeProfile({ ...source, id: apbGenerateId(), name: `${source.name} copy`, updatedAt: apbNowIso() });
-      apbState.profiles.push(copy);
-      apbState.selectedId = copy.id;
-      apbPersist();
-      apbRenderAll();
-      break;
-    }
-    case 'profile-delete': {
-      const profile = apbSelectedProfile();
-      if (!profile) return;
-      apbState.profiles = apbState.profiles.filter((p) => p.id !== profile.id);
-      apbState.selectedId = '';
-      apbPersist();
-      apbRenderAll();
-      break;
-    }
-    case 'block-add':
-      apbUpdateProfile((p) => p.blocks.push({ label: '', value: '' }));
-      break;
-    case 'block-delete':
-      apbUpdateProfile((p) => p.blocks.splice(idx, 1));
-      break;
-    case 'block-up':
-      if (idx > 0) apbUpdateProfile((p) => p.blocks.splice(idx - 1, 0, p.blocks.splice(idx, 1)[0]));
-      break;
-    case 'block-down': {
-      const profile = apbSelectedProfile();
-      if (profile && idx < profile.blocks.length - 1) {
-        apbUpdateProfile((p) => p.blocks.splice(idx + 1, 0, p.blocks.splice(idx, 1)[0]));
-      }
-      break;
-    }
-    case 'task-clear':
-      apbState.task = { ...APB_EMPTY_TASK };
-      apbInvalidatePolish();
-      apbPersist();
-      apbRenderAll();
-      break;
-    case 'copy':
-      apbCopyOutput();
-      break;
-    case 'undo-polish':
-      apbInvalidatePolish();
-      apbRenderOutputPane();
-      break;
-    case 'polish':
-      apbRunPolish();
-      break;
-    case 'profiles-export':
-      apbDownloadExport();
-      break;
-    case 'profiles-import':
-      apbEl('apb-import-file').click();
-      break;
-    default:
-      break;
-  }
-}
-
-function apbSetStatus(message, isError) {
-  const node = apbEl('apb-output-status');
-  if (!node) return;
-  node.textContent = message;
-  node.classList.toggle('apb-error', Boolean(isError));
-}
-
-async function apbCopyOutput() {
-  const text = apbEl('apb-output').value;
+// Every storage access is wrapped: a private window, blocked site data
+// or corrupt JSON must yield an empty draft, never a broken page.
+function apbLoadDraft() {
   try {
-    await navigator.clipboard.writeText(text);
-    apbSetStatus('Copied. Paste it into Claude.', false);
+    const raw = window.localStorage.getItem(APB_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    return {
+      brief: typeof parsed.brief === 'string' ? parsed.brief : '',
+      kindPin: APB_KINDS.includes(parsed.kindPin) ? parsed.kindPin : '',
+      nudges: (parsed.nudges && typeof parsed.nudges === 'object' && !Array.isArray(parsed.nudges))
+        ? parsed.nudges : {},
+    };
   } catch (err) {
-    const box = apbEl('apb-output');
-    box.removeAttribute('readonly');
-    box.focus();
-    box.select();
-    apbSetStatus('Clipboard blocked. The prompt is selected, press Cmd or Ctrl plus C.', true);
+    return null;
   }
 }
 
-function apbDownloadExport() {
-  const text = apbExportProfiles(apbState.profiles);
-  const blob = new Blob([text], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'ai-prompt-builder-profiles.json';
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-function apbWireImport() {
-  apbEl('apb-import-file').addEventListener('change', (event) => {
-    const file = event.target.files && event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const mode = window.confirm('OK to merge with your existing profiles. Cancel to replace them all.')
-        ? 'merge' : 'replace';
-      const result = apbImportProfiles(String(reader.result), apbState.profiles, mode);
-      if (!result.ok) {
-        window.alert(`Import failed. ${result.error}`);
-        return;
-      }
-      apbState.profiles = result.profiles;
-      if (!apbState.profiles.some((p) => p.id === apbState.selectedId)) apbState.selectedId = '';
-      apbPersist();
-      apbRenderAll();
-    };
-    reader.onerror = () => {
-      window.alert('Could not read that file.');
-    };
-    reader.readAsText(file);
-    event.target.value = '';
-  });
-}
-
-const APB_TASK_FIELDS = ['goal', 'detail', 'constraints', 'doneWhen', 'outputFormat', 'roleOverride'];
-
-function apbWireDelegation() {
-  document.body.addEventListener('click', (event) => {
-    const target = event.target.closest('[data-act]');
-    if (target) apbHandleAction(target.dataset.act, target);
-  });
-
-  document.body.addEventListener('input', (event) => {
-    const el = event.target;
-
-    for (const field of APB_TASK_FIELDS) {
-      if (el.id === `apb-task-${field}`) {
-        apbState.task[field] = el.value;
-        apbInvalidatePolish();
-        apbSave(APB_KEYS.draft, { task: apbState.task, selectedId: apbState.selectedId });
-        apbRenderOutputPane();
-        return;
-      }
+function apbSaveDraft() {
+  window.clearTimeout(apbSaveTimer);
+  apbSaveTimer = window.setTimeout(() => {
+    try {
+      window.localStorage.setItem(APB_DRAFT_KEY, JSON.stringify({
+        brief: apbState.brief,
+        kindPin: apbState.kindPin,
+        nudges: apbState.nudges,
+      }));
+    } catch (err) {
+      // Nothing to do and nothing worth interrupting the user over.
     }
-
-    const profile = apbSelectedProfile();
-    if (!profile) return;
-
-    if (el.id === 'apb-profile-name') { profile.name = el.value; apbSyncProfileSelectLabel(profile); }
-    else if (el.id === 'apb-profile-role') profile.role = el.value;
-    else if (el.id === 'apb-profile-output') profile.defaultOutputFormat = el.value;
-    else if (el.classList.contains('apb-block-label')) profile.blocks[Number(el.dataset.index)].label = el.value;
-    else if (el.classList.contains('apb-block-value')) profile.blocks[Number(el.dataset.index)].value = el.value;
-    else return;
-
-    profile.updatedAt = apbNowIso();
-    apbPersist();
-    apbRenderOutputPane();
-  });
-
-  document.body.addEventListener('change', (event) => {
-    if (event.target.id !== 'apb-profile-select') return;
-    apbState.selectedId = event.target.value;
-    apbInvalidatePolish();
-    apbPersist();
-    apbRenderAll();
-  });
+  }, APB_SAVE_DELAY);
 }
 
-function apbSyncProfileSelectLabel(profile) {
-  const select = apbEl('apb-profile-select');
-  if (!select) return;
-  const option = Array.from(select.options).find((o) => o.value === profile.id);
-  if (option) option.textContent = profile.name;
+function apbCurrentKind() {
+  return apbState.kindPin || apbDetectKind(apbState.brief);
 }
 
-/* ---------- boot ---------- */
-
-function apbBoot() {
-  if (!apbStorageAvailable()) {
-    const banner = apbEl('apb-storage-banner');
-    banner.textContent = 'Browser storage is unavailable, so nothing will be saved when you close this tab. Export your profiles before leaving.';
-    banner.hidden = false;
+function apbBuildKindSelect() {
+  const select = apbEl('apb-kind');
+  const options = ['<option value="">Auto (detected)</option>'];
+  for (const kind of APB_KINDS) {
+    options.push(`<option value="${apbEscape(kind)}">${apbEscape(APB_KIND_LABELS[kind])}</option>`);
   }
-
-  const settings = apbLoad(APB_KEYS.settings, {});
-  const storedProfiles = apbLoad(APB_KEYS.profiles, null);
-  const resolved = apbResolveBootProfiles(storedProfiles, settings, apbStarterProfiles);
-  apbState.profiles = resolved.profiles.map((p) => apbMakeProfile(p));
-
-  if (!Array.isArray(storedProfiles)) {
-    // First run, or a prior run that never finished persisting. Write the
-    // resolved array before flipping the seeded flag, so a failed write
-    // (quota, locked-down storage) leaves seeded unset rather than lying
-    // about data that never landed. The next load can then seed again,
-    // which is the safe direction to fail in.
-    const wrote = apbSave(APB_KEYS.profiles, apbState.profiles);
-    if (wrote) apbSave(APB_KEYS.settings, { ...settings, seeded: resolved.seeded });
-  }
-
-  const draft = apbLoad(APB_KEYS.draft, {});
-  apbState.task = { ...APB_EMPTY_TASK, ...(draft.task || {}) };
-  apbState.selectedId = apbState.profiles.some((p) => p.id === draft.selectedId)
-    ? draft.selectedId
-    : (apbState.profiles[0] ? apbState.profiles[0].id : '');
-
-  apbRenderAll();
-  apbWireDelegation();
-  apbWireImport();
-  apbWireSettings();
+  select.innerHTML = options.join('');
 }
 
-let apbPolishGeneration = 0;
-let apbPolishInFlight = false;
+function apbRenderNudges(kind, signals) {
+  const host = apbEl('apb-nudges');
+  const offered = apbOfferedNudges(kind, signals, apbState.nudges);
+  const answered = Object.keys(APB_NUDGE_DEFS).filter(
+    (id) => String(apbState.nudges[id] == null ? '' : apbState.nudges[id]).trim(),
+  );
 
-// This counter and the source-text comparison in apbRunPolish are two
-// independent guards against applying a stale Polish result, and neither is
-// sufficient alone. This counter catches a change of intent that leaves the
-// assembled text byte-identical: clicking Undo mid-request touches nothing
-// else, so a text comparison could never see it. The text comparison in
-// apbRunPolish catches every mutation site that changes what gets assembled
-// (editing a block, adding or deleting one, switching or importing a
-// profile, and so on) without requiring each one to remember to bump this
-// counter, which is exactly the gap that kept reopening when this counter
-// was the only guard. Keep both. Do not delete either as redundant.
-//
-// Any change that makes a currently displayed polished result stale must
-// also invalidate any Polish request still in flight, or that request will
-// resolve later and silently overwrite the newer state with a rewrite of a
-// prompt the user no longer has. Route every place that clears
-// apbState.polished through here so a future clearing site can't reopen
-// that gap.
-function apbInvalidatePolish() {
-  apbPolishGeneration += 1;
-  apbState.polished = '';
-  apbState.polishedSource = '';
-}
-
-function apbRefreshPolishButton() {
-  const button = apbEl('apb-polish-btn');
-  if (!button) return;
-  const availability = apbPolishAvailability();
-  button.disabled = apbPolishInFlight || !availability.ok || !apbState.lastAssembled;
-  button.title = apbPolishInFlight
-    ? `Polishing with ${APB_POLISH_MODEL}...`
-    : (availability.ok ? `Rewrite with ${APB_POLISH_MODEL}` : availability.reason);
-}
-
-async function apbRunPolish() {
-  if (apbPolishInFlight) return;
-  const availability = apbPolishAvailability();
-  if (!availability.ok) {
-    apbSetStatus(availability.reason, true);
+  if (!offered.length && !answered.length) {
+    host.innerHTML = '';
     return;
   }
-  apbPolishGeneration += 1;
-  const generation = apbPolishGeneration;
-  const sourcePrompt = apbState.lastAssembled;
-  apbPolishInFlight = true;
-  apbRefreshPolishButton();
-  apbSetStatus(`Polishing with ${APB_POLISH_MODEL}...`, false);
-  try {
-    const settings = apbLoad(APB_KEYS.settings, {});
-    const polished = await apbPolishPrompt(sourcePrompt, settings.apiKey);
-    if (generation !== apbPolishGeneration || sourcePrompt !== apbState.lastAssembled) {
-      apbSetStatus('The prompt changed while polishing, so that result was dropped.', true);
-      return;
-    }
-    apbState.polished = polished;
-    apbState.polishedSource = sourcePrompt;
-    apbRenderOutputPane();
-    apbSetStatus('Polished. Undo restores the assembled version.', false);
-  } catch (err) {
-    if (generation !== apbPolishGeneration || sourcePrompt !== apbState.lastAssembled) {
-      apbSetStatus('The prompt changed while polishing, so that result was dropped.', true);
-      return;
-    }
-    apbSetStatus(`Polish failed, your prompt is unchanged. ${err.message}`, true);
-  } finally {
-    apbPolishInFlight = false;
-    apbRefreshPolishButton();
+
+  // An answered nudge drops out of `offered` (apbOfferedNudges skips it),
+  // so the open-input branch has to be reachable from BOTH lists —
+  // otherwise a filled chip can never be reopened to edit or clear it.
+  const openInput = (id) => `<span class="apb-nudge-open">
+           <label for="apb-nudge-input">${apbEscape(APB_NUDGE_DEFS[id].label)}</label>
+           <input type="text" id="apb-nudge-input" data-nudge="${apbEscape(id)}"
+             value="${apbEscape(apbState.nudges[id] || '')}">
+         </span>`;
+
+  const chips = offered.map((id) => (
+    apbState.openNudge === id
+      ? openInput(id)
+      : `<button type="button" class="apb-chip" data-open="${apbEscape(id)}">+ ${apbEscape(APB_NUDGE_DEFS[id].label)}</button>`
+  ));
+
+  const filled = answered.map((id) => (
+    apbState.openNudge === id
+      ? openInput(id)
+      : `<button type="button" class="apb-chip apb-chip-done" data-open="${apbEscape(id)}">
+       ${apbEscape(APB_NUDGE_DEFS[id].label)}: ${apbEscape(apbState.nudges[id])}
+     </button>`
+  ));
+
+  host.innerHTML = `<p class="apb-muted">Make it sharper?</p>
+    <div class="apb-chiprow">${chips.join('')}${filled.join('')}</div>`;
+
+  const input = apbEl('apb-nudge-input');
+  if (input) {
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
   }
 }
 
-function apbWireSettings() {
-  const dialog = apbEl('apb-settings-dialog');
-  const settings = apbLoad(APB_KEYS.settings, {});
+function apbRender() {
+  // A direct render supersedes any debounced one still pending. Letting that
+  // stale timer fire would rebuild an open nudge input and discard whatever
+  // has been typed into it since.
+  window.clearTimeout(apbRenderTimer);
+  const brief = apbState.brief.trim();
+  const kind = apbCurrentKind();
+  const signals = apbExtractSignals(apbState.brief);
+  const prompt = apbAssemblePrompt(
+    apbState.brief, kind, signals, apbNudgeContributions(apbState.nudges),
+  );
 
-  dialog.innerHTML = `
-    <form method="dialog" class="apb-settings">
-      <h2>Settings</h2>
-      <label class="apb-field">Anthropic API key
-        <input type="password" id="apb-api-key" value="${apbEscape(settings.apiKey || '')}" placeholder="sk-ant-...">
-      </label>
-      <p class="apb-warn">
-        This key is stored in this browser's local storage on this device, unencrypted.
-        Anyone with access to this browser profile can read it. Leave it blank to use the
-        tool without Polish, which changes nothing else.
-      </p>
-      <p class="apb-muted">Polish uses ${apbEscape(APB_POLISH_MODEL)}. It is the only network call this tool ever makes.</p>
-      <div class="apb-row apb-row-end">
-        <button type="button" data-act="settings-clear">Clear key</button>
-        <button value="save">Save</button>
-      </div>
-    </form>`;
+  apbEl('apb-kindrow').hidden = !brief;
+  // The first option is the auto slot. Label it with what detection
+  // actually guessed, so the closed select shows the guess rather than the
+  // word "Auto" — seeing the guess is the whole point of making one.
+  const autoOption = apbEl('apb-kind').options[0];
+  if (autoOption) {
+    autoOption.textContent = brief
+      ? `${APB_KIND_LABELS[apbDetectKind(apbState.brief)]} (auto)`
+      : 'Auto (detected)';
+  }
+  apbEl('apb-kind').value = apbState.kindPin;
+  apbEl('apb-prompt').textContent = prompt;
+  apbEl('apb-copy').disabled = !prompt;
+  apbEl('apb-empty').textContent = prompt
+    ? ''
+    : 'Type what you need above and your prompt appears here.';
+  apbEl('apb-empty').hidden = Boolean(prompt);
 
-  apbEl('apb-settings-btn').addEventListener('click', () => dialog.showModal());
+  if (brief) apbRenderNudges(kind, signals);
+  else apbEl('apb-nudges').innerHTML = '';
+}
 
-  dialog.addEventListener('click', (event) => {
-    if (event.target.dataset.act !== 'settings-clear') return;
-    apbEl('apb-api-key').value = '';
+function apbScheduleRender() {
+  window.clearTimeout(apbRenderTimer);
+  apbRenderTimer = window.setTimeout(apbRender, APB_RENDER_DELAY);
+}
+
+async function apbCopy() {
+  const button = apbEl('apb-copy');
+  const text = apbEl('apb-prompt').textContent;
+  const restore = () => window.setTimeout(() => { button.textContent = 'Copy'; }, 2000);
+  try {
+    await navigator.clipboard.writeText(text);
+    button.textContent = 'Copied';
+    restore();
+    return;
+  } catch (err) {
+    // Falls through to the file:// and older-browser path below.
+  }
+  try {
+    const scratch = document.createElement('textarea');
+    scratch.value = text;
+    scratch.setAttribute('readonly', '');
+    scratch.style.position = 'absolute';
+    scratch.style.left = '-9999px';
+    document.body.appendChild(scratch);
+    scratch.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(scratch);
+    if (!ok) throw new Error('execCommand returned false');
+    button.textContent = 'Copied';
+    restore();
+  } catch (err) {
+    button.textContent = 'Press Ctrl+C';
+    const range = document.createRange();
+    range.selectNodeContents(apbEl('apb-prompt'));
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    restore();
+  }
+}
+
+// Recording and closing are separate because a click on a different chip
+// arrives AFTER the focusout that click triggers. The answer has to be
+// saved synchronously or it is lost, while the re-render that would
+// destroy the button the click is headed for has to wait until that click
+// has been handled.
+function apbRecordNudge(id, value) {
+  const text = String(value == null ? '' : value).trim();
+  if (text) apbState.nudges[id] = text;
+  else delete apbState.nudges[id];
+  apbSaveDraft();
+}
+
+function apbCommitNudge(id, value) {
+  apbRecordNudge(id, value);
+  // Another chip already claimed the open slot, so it owns the render.
+  if (apbState.openNudge !== id) return;
+  apbState.openNudge = '';
+  apbRender();
+}
+
+function apbWire() {
+  apbEl('apb-brief').addEventListener('input', (event) => {
+    apbState.brief = event.target.value;
+    // Clearing the box releases a pinned kind, so the next brief is
+    // detected fresh rather than inheriting the last one's override.
+    if (!apbState.brief.trim()) apbState.kindPin = '';
+    apbSaveDraft();
+    apbScheduleRender();
   });
 
-  dialog.addEventListener('close', () => {
-    // <form method="dialog"> sets dialog.returnValue to the activating
-    // button's value on submit ("save" here) and leaves it empty on Escape
-    // or a backdrop click. Only persist on an explicit Save, or the dialog's
-    // own warning about the key being stored unencrypted becomes false: a
-    // user who reads it and backs out with Escape would have it saved
-    // anyway. This also means Clear key needs a follow-up Save to take
-    // effect, which is the same missing-Cancel bug pointing the other way,
-    // not a new one.
-    if (dialog.returnValue !== 'save') return;
-    const key = apbEl('apb-api-key').value.trim();
-    apbSave(APB_KEYS.settings, { ...apbLoad(APB_KEYS.settings, {}), apiKey: key });
-    apbRefreshPolishButton();
+  apbEl('apb-kind').addEventListener('change', (event) => {
+    apbState.kindPin = APB_KINDS.includes(event.target.value) ? event.target.value : '';
+    apbSaveDraft();
+    apbRender();
   });
+
+  apbEl('apb-copy').addEventListener('click', apbCopy);
+
+  apbEl('apb-nudges').addEventListener('click', (event) => {
+    const trigger = event.target.closest('[data-open]');
+    if (!trigger) return;
+    apbState.openNudge = trigger.dataset.open;
+    apbRender();
+  });
+
+  apbEl('apb-nudges').addEventListener('keydown', (event) => {
+    if (!event.target.dataset || !event.target.dataset.nudge) return;
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      apbCommitNudge(event.target.dataset.nudge, event.target.value);
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      apbState.openNudge = '';
+      apbRender();
+    }
+  });
+
+  apbEl('apb-nudges').addEventListener('focusout', (event) => {
+    if (!event.target.dataset || !event.target.dataset.nudge) return;
+    const id = event.target.dataset.nudge;
+    const value = event.target.value;
+    // Save now, close on the next macrotask. A click on another chip is
+    // dispatched after this focusout, and closing synchronously would
+    // rebuild the chip row and destroy the button that click was aimed at,
+    // costing the user a second click.
+    apbRecordNudge(id, value);
+    window.setTimeout(() => {
+      if (apbState.openNudge !== id) return;
+      apbState.openNudge = '';
+      apbRender();
+    }, 0);
+  });
+}
+
+function apbBoot() {
+  apbBuildKindSelect();
+  const draft = apbLoadDraft();
+  if (draft) {
+    apbState.brief = draft.brief;
+    apbState.kindPin = draft.kindPin;
+    apbState.nudges = draft.nudges;
+    apbEl('apb-brief').value = draft.brief;
+  }
+  apbWire();
+  apbRender();
 }
 
 document.addEventListener('DOMContentLoaded', apbBoot);

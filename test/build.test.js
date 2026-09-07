@@ -44,10 +44,12 @@ test('build output is a complete standalone document', () => {
   assert.equal(/<link[^>]+href=/.test(html), false, 'no external stylesheets');
 });
 
-test('build inlines the styles and the assembler', () => {
+test('build inlines the styles and every module', () => {
   const html = apbBuildHtml();
+  assert.ok(html.includes('apbDetectKind'));
   assert.ok(html.includes('apbAssemblePrompt'));
-  assert.ok(html.includes('apbAnalyzeGaps'));
+  assert.ok(html.includes('apbOfferedNudges'));
+  assert.ok(html.includes('apbBoot'));
   assert.ok(html.includes('<style>'));
 });
 

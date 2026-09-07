@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const APB_ROOT = dirname(fileURLToPath(import.meta.url));
 
 export const APB_MODULE_ORDER = [
-  'profiles.js', 'assembler.js', 'gapcheck.js', 'storage.js', 'polish.js', 'ui.js',
+  'detect.js', 'assembler.js', 'nudges.js', 'ui.js',
 ];
 
 export function apbStripModuleSyntax(source) {
@@ -68,9 +68,9 @@ export function apbBuildHtml() {
   const script = chunks.join('\n\n');
   apbAssertBundleCompiles(script);
   return apbReadSrc('shell.html')
-    .replace('<!--INJECT:STYLES-->', `<style>\n${styles.trim()}\n</style>`)
-    .replace('<!--INJECT:VERSION-->', `v${pkg.version}`)
-    .replace('<!--INJECT:SCRIPT-->', `<script>\n${script}\n</script>`);
+    .replace('<!--INJECT:STYLES-->', () => `<style>\n${styles.trim()}\n</style>`)
+    .replace('<!--INJECT:VERSION-->', () => `v${pkg.version}`)
+    .replace('<!--INJECT:SCRIPT-->', () => `<script>\n${script}\n</script>`);
 }
 
 const APB_IS_CLI = process.argv[1] && process.argv[1].endsWith('build.js');
