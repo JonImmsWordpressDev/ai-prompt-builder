@@ -5,6 +5,11 @@ into Claude, ChatGPT or anything else.
 
 No account, no sign-in, no API key, and nothing to install.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-dark.png">
+  <img alt="A brief typed into a single box, with the finished prompt below it: a role line, then What I need, Who it's for, Tone, What done looks like, and How to respond." src="assets/screenshot-light.png" width="720">
+</picture>
+
 ## Try it
 
 **https://jonimmswordpressdev.github.io/ai-prompt-builder/**
