@@ -95,6 +95,7 @@ function apbRenderNudges(kind, signals) {
   const openInput = (id) => `<span class="apb-nudge-open">
            <label for="apb-nudge-input">${apbEscape(APB_NUDGE_DEFS[id].label)}</label>
            <input type="text" id="apb-nudge-input" data-nudge="${apbEscape(id)}"
+             placeholder="${apbEscape(APB_NUDGE_DEFS[id].hint || '')}"
              value="${apbEscape(apbState.nudges[id] || '')}">
          </span>`;
 

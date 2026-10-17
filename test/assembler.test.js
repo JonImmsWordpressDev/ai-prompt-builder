@@ -9,7 +9,7 @@ import { APB_KINDS } from '../src/detect.js';
 const NO_SIGNALS = { audience: '', tone: '', length: '', deadline: '' };
 
 test('section order is the agreed order', () => {
-  assert.deepEqual(APB_SECTION_ORDER, ['need', 'audience', 'tone', 'constraints', 'done']);
+  assert.deepEqual(APB_SECTION_ORDER, ['context', 'need', 'details', 'done']);
   for (const key of APB_SECTION_ORDER) {
     assert.equal(typeof APB_SECTION_HEADINGS[key], 'string');
   }
@@ -25,7 +25,11 @@ test('every kind has a role line and a response instruction', () => {
 });
 
 test('every response instruction ends with the ask-first clause', () => {
-  assert.equal(APB_ASK_FIRST, 'If something important is missing, ask me before you start.');
+  assert.equal(
+    APB_ASK_FIRST,
+    'If something important is missing, ask me before you start. '
+    + 'For anything minor, make a sensible assumption and tell me what you assumed.',
+  );
   for (const kind of APB_KINDS) {
     assert.ok(
       APB_RESPOND_LINES[kind].endsWith(APB_ASK_FIRST),
@@ -50,13 +54,9 @@ test('golden output for a full writing brief', () => {
     '## What I need',
     'A blog post about choosing a plumber',
     '',
-    "## Who it's for",
-    'homeowners',
-    '',
-    '## Tone',
-    'friendly',
-    '',
-    '## Constraints',
+    '## Details',
+    '- Audience: homeowners',
+    '- Tone: friendly',
     '- Length: 800 words',
     '- Deadline: Friday',
     '',
@@ -67,9 +67,8 @@ test('golden output for a full writing brief', () => {
 
 test('empty sections omit their heading as well as their body', () => {
   const out = apbAssemblePrompt('Fix the login bug', 'code', NO_SIGNALS, {});
-  assert.equal(out.includes("Who it's for"), false);
-  assert.equal(out.includes('## Tone'), false);
-  assert.equal(out.includes('## Constraints'), false);
+  assert.equal(out.includes('## Background'), false);
+  assert.equal(out.includes('## Details'), false);
   assert.equal(out.includes('What done looks like'), false);
   assert.ok(out.includes('## What I need'));
   assert.ok(out.includes('## How to respond'));
@@ -81,11 +80,11 @@ test('the role line carries no heading', () => {
   assert.equal(out.startsWith('#'), false);
 });
 
-test('constraints render as a bulleted list', () => {
+test('details render as a bulleted list', () => {
   const out = apbAssemblePrompt('Write a post', 'writing', NO_SIGNALS, {
     constraints: ['Length: 500 words', 'Avoid: jargon'],
   });
-  assert.ok(out.includes('## Constraints\n- Length: 500 words\n- Avoid: jargon'));
+  assert.ok(out.includes('## Details\n- Length: 500 words\n- Avoid: jargon'));
 });
 
 test('contributions merge with signals in the same section', () => {
@@ -96,8 +95,8 @@ test('contributions merge with signals in the same section', () => {
     need: ['What I have: three case studies'],
     done: ['Verified by: my editor signs it off'],
   });
-  assert.ok(out.includes("## Who it's for\nhomeowners\nand letting agents"));
-  assert.ok(out.includes('## Tone\nfriendly, upbeat'));
+  assert.ok(out.includes('- Audience: homeowners; and letting agents'));
+  assert.ok(out.includes('- Tone: friendly, upbeat'));
   assert.ok(out.includes('## What I need\nWrite a post\n\nWhat I have: three case studies'));
   assert.ok(out.includes('## What done looks like\nVerified by: my editor signs it off'));
 });
@@ -130,7 +129,28 @@ test('a nudge answer duplicating an extracted signal renders once', () => {
     audience: ['homeowners'],
     constraints: ['Length: 500 words'],
   });
-  assert.ok(out.includes('## Tone\nfriendly\n'), 'tone must not repeat');
-  assert.ok(out.includes("## Who it's for\nhomeowners\n"), 'audience must not repeat');
+  assert.ok(out.includes('- Tone: friendly\n'), 'tone must not repeat');
+  assert.ok(out.includes('- Audience: homeowners\n'), 'audience must not repeat');
   assert.equal(out.match(/Length: 500 words/g).length, 1, 'length must not repeat');
+});
+
+test('background renders first, before what I need', () => {
+  const out = apbAssemblePrompt('Write a post', 'writing', NO_SIGNALS, {
+    context: ['I run a small plumbing firm in Leeds'],
+  });
+  assert.ok(out.includes('## Background\nI run a small plumbing firm in Leeds\n\n## What I need'));
+});
+
+test('no role line names an audience the brief might contradict', () => {
+  for (const kind of APB_KINDS) {
+    assert.equal(/audience/i.test(APB_ROLE_LINES[kind]), false, `${kind} role line names an audience`);
+  }
+});
+
+test('nothing the tool writes into a prompt uses em or en dashes', () => {
+  const fixed = [...Object.values(APB_ROLE_LINES), ...Object.values(APB_RESPOND_LINES),
+    ...Object.values(APB_SECTION_HEADINGS)];
+  for (const line of fixed) {
+    assert.equal(/[\u2013\u2014]/.test(line), false, `dash in: ${line}`);
+  }
 });

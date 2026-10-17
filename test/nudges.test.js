@@ -18,11 +18,12 @@ test('every kind has an order, and every id in it is defined', () => {
 });
 
 test('every definition routes to a real assembler section', () => {
-  const sections = ['need', 'audience', 'tone', 'constraints', 'done'];
+  const sections = ['context', 'need', 'audience', 'tone', 'constraints', 'done'];
   for (const id of Object.keys(APB_NUDGE_DEFS)) {
     assert.ok(sections.includes(APB_NUDGE_DEFS[id].section), `${id} has a bad section`);
     assert.equal(typeof APB_NUDGE_DEFS[id].label, 'string');
     assert.equal(typeof APB_NUDGE_DEFS[id].prefix, 'string');
+    assert.ok(APB_NUDGE_DEFS[id].hint.startsWith('e.g. '), `${id} needs an example hint`);
   }
 });
 
@@ -33,31 +34,38 @@ test('offers at most three chips', () => {
   }
 });
 
-test('offers the universal three first when nothing is known', () => {
-  assert.deepEqual(apbOfferedNudges('writing', NO_SIGNALS, {}), ['audience', 'tone', 'done']);
+test('offers each kind its most useful three first when nothing is known', () => {
+  assert.deepEqual(apbOfferedNudges('writing', NO_SIGNALS, {}), ['audience', 'tone', 'context']);
+  assert.deepEqual(apbOfferedNudges('code', NO_SIGNALS, {}), ['stack', 'done', 'test']);
+  assert.deepEqual(apbOfferedNudges('general', NO_SIGNALS, {}), ['context', 'done', 'audience']);
+});
+
+test('code never offers tone or audience', () => {
+  assert.equal(APB_NUDGE_ORDER.code.includes('tone'), false);
+  assert.equal(APB_NUDGE_ORDER.code.includes('audience'), false);
 });
 
 test('a nudge is suppressed when its signal was extracted', () => {
   const signals = { ...NO_SIGNALS, audience: 'homeowners', tone: 'friendly' };
-  assert.deepEqual(apbOfferedNudges('writing', signals, {}), ['done', 'length', 'avoid']);
+  assert.deepEqual(apbOfferedNudges('writing', signals, {}), ['context', 'done', 'length']);
 });
 
-test('per-kind extras follow the universal ones', () => {
+test('each kind leads with its own questions', () => {
   const signals = { ...NO_SIGNALS, audience: 'a', tone: 'warm' };
-  assert.deepEqual(apbOfferedNudges('code', signals, {}), ['done', 'test', 'freeze']);
-  assert.deepEqual(apbOfferedNudges('plan', signals, {}), ['done', 'deadline', 'who']);
-  assert.deepEqual(apbOfferedNudges('analysis', signals, {}), ['done', 'data', 'decision']);
-  assert.deepEqual(apbOfferedNudges('design', signals, {}), ['done', 'where', 'brand']);
+  assert.deepEqual(apbOfferedNudges('code', signals, {}), ['stack', 'done', 'test']);
+  assert.deepEqual(apbOfferedNudges('plan', signals, {}), ['context', 'deadline', 'done']);
+  assert.deepEqual(apbOfferedNudges('analysis', signals, {}), ['data', 'decision', 'context']);
+  assert.deepEqual(apbOfferedNudges('design', signals, {}), ['where', 'brand', 'context']);
 });
 
 test('an answered nudge stops being offered, and an emptied one returns', () => {
   assert.deepEqual(
     apbOfferedNudges('writing', NO_SIGNALS, { audience: 'homeowners' }),
-    ['tone', 'done', 'length'],
+    ['tone', 'context', 'done'],
   );
   assert.deepEqual(
     apbOfferedNudges('writing', NO_SIGNALS, { audience: '   ' }),
-    ['audience', 'tone', 'done'],
+    ['audience', 'tone', 'context'],
   );
 });
 
@@ -70,6 +78,8 @@ test('an unknown kind falls back to the general order', () => {
 
 test('contributions route each answer to its section with its prefix', () => {
   const out = apbNudgeContributions({
+    context: 'I run a bakery',
+    stack: 'WordPress 6.6',
     audience: 'homeowners',
     tone: 'upbeat',
     done: 'it reads well',
@@ -84,6 +94,7 @@ test('contributions route each answer to its section with its prefix', () => {
     where: 'a shop window',
     brand: 'navy and gold',
   });
+  assert.deepEqual(out.context, ['I run a bakery', 'My setup: WordPress 6.6']);
   assert.deepEqual(out.audience, ['homeowners', 'the marketing team']);
   assert.deepEqual(out.tone, ['upbeat']);
   assert.deepEqual(out.done, ['it reads well', 'Verified by: npm test passes']);
@@ -103,7 +114,9 @@ test('contributions route each answer to its section with its prefix', () => {
 
 test('contributions ignore blank answers and unknown ids', () => {
   const out = apbNudgeContributions({ audience: '  ', tone: '', bogus: 'x' });
-  assert.deepEqual(out, { need: [], audience: [], tone: [], constraints: [], done: [] });
+  assert.deepEqual(out, {
+    context: [], need: [], audience: [], tone: [], constraints: [], done: [],
+  });
 });
 
 test('answers survive a kind change', () => {
