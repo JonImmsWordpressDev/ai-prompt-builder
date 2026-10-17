@@ -160,3 +160,33 @@ test('a rejected audience capture falls through to the next occurrence', () => {
   // Still returns nothing when every occurrence is rejected.
   assert.equal(apbExtractAudience('do this for me and for us'), '');
 });
+
+test('audience ignores durations, dates and times after "for"', () => {
+  assert.equal(apbExtractAudience('a talk for 5 minutes'), '');
+  assert.equal(apbExtractAudience('I need it for Friday'), '');
+  assert.equal(apbExtractAudience('plan meals for next week'), '');
+  assert.equal(apbExtractAudience('book a table for tonight'), '');
+  assert.equal(apbExtractAudience('a schedule for March'), '');
+  assert.equal(apbExtractAudience('for two hours, for busy parents'), 'busy parents');
+});
+
+test('audience capture stops before the topic starts', () => {
+  assert.equal(apbExtractAudience('a blog post for homeowners about choosing a plumber'), 'homeowners');
+  assert.equal(apbExtractAudience('an email for new customers explaining our returns policy'), 'new customers');
+  assert.equal(apbExtractAudience('a guide for small business owners on VAT'), 'small business owners');
+  assert.equal(apbExtractAudience('for teachers who hate marking'), 'teachers who hate marking');
+});
+
+test('audience skips purposes that open on "a" or "an"', () => {
+  assert.equal(apbExtractAudience('a cover letter for a marketing job'), '');
+  assert.equal(apbExtractAudience('a toast for a wedding, for the groom\'s family'), "the groom's family");
+});
+
+test('ambiguous words no longer drag a brief to the wrong kind', () => {
+  assert.equal(apbDetectKind('Write a 5 minute video script for my channel'), 'writing');
+  assert.equal(apbDetectKind('Fix my CV so it reads better'), 'writing');
+  assert.equal(apbDetectKind('Write a cover letter for a marketing job'), 'writing');
+  assert.equal(apbDetectKind('Build me a weekly meal plan'), 'plan');
+  assert.equal(apbDetectKind('A python script that renames my photos'), 'code');
+  assert.equal(apbDetectKind('Write a product description for my candles'), 'writing');
+});

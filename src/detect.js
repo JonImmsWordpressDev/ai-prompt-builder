@@ -16,18 +16,24 @@ export const APB_KIND_LABELS = {
 // word-boundary anchored, so "brand" does NOT match "branding" and
 // "analyse" does NOT match "analysis" — each form has to be present.
 export const APB_KIND_KEYWORDS = {
+  // Bare "script", "fix", "build" and "page" are deliberately absent: a
+  // video script, fixing a CV, building a meal plan and a landing page are
+  // not code jobs. The qualified phrases below carry the signal instead.
   writing: [
     'write', 'writing', 'blog', 'post', 'article', 'essay', 'copy',
-    'newsletter', 'email', 'caption', 'script', 'story', 'headline',
-    'tagline', 'bio', 'description', 'page', 'social', 'tweet',
+    'newsletter', 'email', 'caption', 'story', 'headline',
+    'tagline', 'bio', 'description', 'social', 'tweet',
     'press release', 'letter', 'draft', 'rewrite', 'proofread',
+    'video script', 'youtube', 'podcast', 'speech', 'cv', 'resume',
+    'cover letter', 'linkedin', 'product description',
   ],
   code: [
-    'code', 'coding', 'bug', 'fix', 'function', 'api', 'endpoint',
+    'code', 'coding', 'bug', 'debug', 'function', 'api', 'endpoint',
     'database', 'query', 'sql', 'app', 'website', 'deploy', 'test',
     'refactor', 'error', 'css', 'html', 'javascript', 'typescript',
     'python', 'php', 'react', 'wordpress', 'plugin', 'repo',
-    'component', 'script', 'build', 'crash',
+    'component', 'crash', 'regex', 'python script', 'bash script',
+    'shell script', 'apps script',
   ],
   plan: [
     'plan', 'roadmap', 'strategy', 'schedule', 'itinerary', 'steps',
@@ -98,9 +104,33 @@ export const APB_AUDIENCE_CUES = [
   'audience is', 'audience:', 'aimed at', 'targeted at', 'targeting', 'for',
 ];
 
+// "a"/"an" lead purposes far more often than people: "for a wedding",
+// "for a marketing job". The audience chip is there for the rest.
 export const APB_AUDIENCE_REJECT = [
   'me', 'you', 'us', 'it', 'this', 'that', 'them', 'free', 'now',
-  'example', 'instance', 'sure', 'once',
+  'example', 'instance', 'sure', 'once', 'a', 'an',
+];
+
+// A capture that opens on one of these is a time, not a group of people:
+// "for Friday", "for next week", "for tonight".
+export const APB_AUDIENCE_TIME_WORDS = [
+  'today', 'tonight', 'tomorrow', 'next', 'this', 'last', 'weekend',
+  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+  'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august',
+  'september', 'october', 'november', 'december', 'christmas', 'easter',
+];
+
+// A count followed by one of these is a duration: "for 5 minutes", "for
+// two hours". A count followed by anything else ("for 20 people") is kept.
+const APB_DURATION_UNIT_RE = /^(?:seconds?|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|years?)$/i;
+const APB_COUNT_RE = /^(?:\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|twelve|few|couple)$/i;
+
+// The audience ends where the topic begins: "for homeowners about choosing
+// a plumber". "who" is not here, because "teachers who hate marking" is
+// still describing the people.
+export const APB_AUDIENCE_STOP_WORDS = [
+  'about', 'on', 'explaining', 'covering', 'regarding', 'that', 'which',
+  'so', 'because', 'to', 'with', 'using', 'by', 'due', 'before',
 ];
 
 export function apbExtractAudience(brief) {
@@ -115,13 +145,20 @@ export function apbExtractAudience(brief) {
     const pattern = new RegExp(`\\b${apbEscapeRegExp(cue)}\\s+([^,.;:]+)`, 'gi');
     for (const match of text.matchAll(pattern)) {
       const words = match[1].trim().split(/\s+/);
-      const phrase = words.slice(0, 5).join(' ').trim();
-      if (phrase.length < 3) continue;
+      const first = words[0].toLowerCase();
       // Reject-checking the leading word, not the whole phrase, is what
       // catches a run-on capture: with no punctuation between two
       // occurrences of the same cue (e.g. "for me and for us"), the greedy
       // capture swallows both, but the phrase still opens on filler.
-      if (APB_AUDIENCE_REJECT.includes(words[0].toLowerCase())) continue;
+      if (APB_AUDIENCE_REJECT.includes(first)) continue;
+      if (APB_AUDIENCE_TIME_WORDS.includes(first)) continue;
+      if (APB_COUNT_RE.test(first) && APB_DURATION_UNIT_RE.test(words[1] || '')) continue;
+      const stop = words.findIndex(
+        (word, i) => i > 0 && APB_AUDIENCE_STOP_WORDS.includes(word.toLowerCase()),
+      );
+      const kept = stop === -1 ? words : words.slice(0, stop);
+      const phrase = kept.slice(0, 5).join(' ').trim();
+      if (phrase.length < 3) continue;
       return phrase;
     }
   }
