@@ -17,6 +17,8 @@
   <textarea id="apb-brief" rows="6" spellcheck="true"
     placeholder="I need a blog post about choosing a plumber, friendly tone, for homeowners"></textarea>
 
+  <div class="apb-examples" id="apb-examples" hidden></div>
+
   <p class="apb-kindrow" id="apb-kindrow" hidden>
     <label for="apb-kind">Looks like:</label>
     <select id="apb-kind"></select>
@@ -31,6 +33,13 @@
     <pre class="apb-prompt" id="apb-prompt" tabindex="0"></pre>
     <div class="apb-nudges" id="apb-nudges"></div>
   </section>
+
+  <details class="apb-history" id="apb-history" hidden>
+    <summary>Recent prompts</summary>
+    <p class="apb-muted">Saved in this browser each time you copy. Nothing is sent anywhere.</p>
+    <ol class="apb-history-list" id="apb-history-list"></ol>
+    <button type="button" class="apb-linkbutton" id="apb-history-clear">Clear recent prompts</button>
+  </details>
 </main>
 
 <!--INJECT:SCRIPT-->

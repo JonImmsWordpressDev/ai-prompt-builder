@@ -3,8 +3,13 @@ import {
 } from './detect.js';
 import { apbAssemblePrompt } from './assembler.js';
 import { APB_NUDGE_DEFS, apbOfferedNudges, apbNudgeContributions } from './nudges.js';
+import { APB_EXAMPLES } from './examples.js';
+import {
+  apbHistorySanitize, apbHistoryAdd, apbHistoryHas, apbHistoryTitle,
+} from './history.js';
 
 const APB_DRAFT_KEY = 'apb.draft.v2';
+const APB_HISTORY_KEY = 'apb.history.v1';
 const APB_RENDER_DELAY = 150;
 const APB_SAVE_DELAY = 400;
 
@@ -15,6 +20,7 @@ const apbState = {
   // Which nudge chip is currently expanded into a text input. One at a
   // time, so the row never turns into a form.
   openNudge: '',
+  history: [],
 };
 
 let apbRenderTimer = null;
@@ -62,6 +68,74 @@ function apbSaveDraft() {
       // Nothing to do and nothing worth interrupting the user over.
     }
   }, APB_SAVE_DELAY);
+}
+
+function apbLoadHistory() {
+  try {
+    const raw = window.localStorage.getItem(APB_HISTORY_KEY);
+    return raw ? apbHistorySanitize(JSON.parse(raw), APB_KINDS) : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function apbSaveHistory() {
+  try {
+    window.localStorage.setItem(APB_HISTORY_KEY, JSON.stringify(apbState.history));
+  } catch (err) {
+    // History is a convenience; losing a save is not worth a message.
+  }
+}
+
+function apbRemember() {
+  if (!apbState.brief.trim()) return;
+  apbState.history = apbHistoryAdd(apbState.history, {
+    brief: apbState.brief,
+    kindPin: apbState.kindPin,
+    nudges: apbState.nudges,
+    savedAt: new Date().toISOString(),
+  });
+  apbSaveHistory();
+  apbRenderHistory();
+}
+
+function apbRenderHistory() {
+  const host = apbEl('apb-history');
+  const list = apbEl('apb-history-list');
+  host.hidden = !apbState.history.length;
+  list.innerHTML = apbState.history.map((item, index) => {
+    const kind = item.kindPin || apbDetectKind(item.brief);
+    const when = item.savedAt
+      ? new Date(item.savedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+      : '';
+    const meta = [APB_KIND_LABELS[kind], when].filter(Boolean).join(' \u00b7 ');
+    return `<li><button type="button" class="apb-history-item" data-history="${index}">
+      <span class="apb-history-title">${apbEscape(apbHistoryTitle(item.brief))}</span>
+      <span class="apb-history-meta">${apbEscape(meta)}</span>
+    </button></li>`;
+  }).join('');
+}
+
+// Loading a brief replaces whatever is in the box. If that work was never
+// copied it is not in history yet, so it is saved first rather than lost.
+function apbLoadBrief(brief, kindPin, nudges) {
+  if (apbState.brief.trim() && apbState.brief !== brief && !apbHistoryHas(apbState.history, apbState.brief)) {
+    apbRemember();
+  }
+  apbState.brief = brief;
+  apbState.kindPin = kindPin;
+  apbState.nudges = { ...nudges };
+  apbState.openNudge = '';
+  apbEl('apb-brief').value = brief;
+  apbSaveDraft();
+  apbRender();
+}
+
+function apbBuildExamples() {
+  apbEl('apb-examples').innerHTML = `<span class="apb-muted">Try one:</span>
+    ${APB_EXAMPLES.map((example, index) => (
+    `<button type="button" class="apb-chip" data-example="${index}">${apbEscape(example.label)}</button>`
+  )).join('')}`;
 }
 
 function apbCurrentKind() {
@@ -136,6 +210,7 @@ function apbRender() {
   );
 
   apbEl('apb-kindrow').hidden = !brief;
+  apbEl('apb-examples').hidden = Boolean(brief);
   // The first option is the auto slot. Label it with what detection
   // actually guessed, so the closed select shows the guess rather than the
   // word "Auto" — seeing the guess is the whole point of making one.
@@ -165,6 +240,9 @@ function apbScheduleRender() {
 async function apbCopy() {
   const button = apbEl('apb-copy');
   const text = apbEl('apb-prompt').textContent;
+  // Copying is the moment a prompt is worth keeping, whichever of the
+  // clipboard paths below ends up working.
+  apbRemember();
   const restore = () => window.setTimeout(() => { button.textContent = 'Copy'; }, 2000);
   try {
     await navigator.clipboard.writeText(text);
@@ -236,6 +314,31 @@ function apbWire() {
 
   apbEl('apb-copy').addEventListener('click', apbCopy);
 
+  apbEl('apb-examples').addEventListener('click', (event) => {
+    const trigger = event.target.closest('[data-example]');
+    if (!trigger) return;
+    const example = APB_EXAMPLES[Number(trigger.dataset.example)];
+    if (!example) return;
+    apbLoadBrief(example.brief, '', {});
+    apbEl('apb-brief').focus();
+  });
+
+  apbEl('apb-history-list').addEventListener('click', (event) => {
+    const trigger = event.target.closest('[data-history]');
+    if (!trigger) return;
+    const item = apbState.history[Number(trigger.dataset.history)];
+    if (!item) return;
+    apbLoadBrief(item.brief, item.kindPin, item.nudges);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    apbEl('apb-brief').focus({ preventScroll: true });
+  });
+
+  apbEl('apb-history-clear').addEventListener('click', () => {
+    apbState.history = [];
+    apbSaveHistory();
+    apbRenderHistory();
+  });
+
   apbEl('apb-nudges').addEventListener('click', (event) => {
     const trigger = event.target.closest('[data-open]');
     if (!trigger) return;
@@ -275,6 +378,9 @@ function apbWire() {
 
 function apbBoot() {
   apbBuildKindSelect();
+  apbBuildExamples();
+  apbState.history = apbLoadHistory();
+  apbRenderHistory();
   const draft = apbLoadDraft();
   if (draft) {
     apbState.brief = draft.brief;
