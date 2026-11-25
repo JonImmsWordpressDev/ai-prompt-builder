@@ -161,6 +161,15 @@ test('a rejected audience capture falls through to the next occurrence', () => {
   assert.equal(apbExtractAudience('do this for me and for us'), '');
 });
 
+test('a rejected capture with no punctuation still lets the next cue through', () => {
+  assert.equal(apbExtractAudience('Plan a trip for 2 weeks for my family'), 'my family');
+  assert.equal(apbExtractAudience('Write onboarding docs for a week for new hires'), 'new hires');
+  assert.equal(apbExtractAudience('Plan a workshop for two hours for my team'), 'my team');
+  assert.equal(apbExtractAudience('Plan a class for 30 minutes for beginners'), 'beginners');
+  assert.equal(apbExtractAudience('Write a post for me about pipes for homeowners'), 'homeowners');
+  assert.equal(apbExtractAudience('plan meals for next week for the kids'), 'the kids');
+});
+
 test('audience ignores durations, dates and times after "for"', () => {
   assert.equal(apbExtractAudience('a talk for 5 minutes'), '');
   assert.equal(apbExtractAudience('I need it for Friday'), '');
