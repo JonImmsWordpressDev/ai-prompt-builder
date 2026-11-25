@@ -106,6 +106,16 @@ test('length matches the three patterns in priority order', () => {
   assert.equal(apbExtractLength('no length here'), '');
 });
 
+test('length keeps thousands separators and accepts a hyphen before the unit', () => {
+  assert.equal(apbExtractLength('Write a 1,500 word article for nurses'), '1,500 word');
+  assert.equal(apbExtractLength('a 1,200 character bio'), '1,200 character');
+  assert.equal(apbExtractLength('a 1500-word post'), '1500 word');
+  assert.equal(apbExtractLength('a 2,000-word essay'), '2,000 word');
+  assert.equal(apbExtractLength('a 5-page report'), '5 page');
+  assert.equal(apbExtractLength('a 10-minute talk'), '10 minute');
+  assert.equal(apbExtractLength('somewhere between 500-800 words'), '800 words');
+});
+
 test('deadline matches the accepted date shapes', () => {
   assert.equal(apbExtractDeadline('needed by Friday'), 'Friday');
   assert.equal(apbExtractDeadline('due tomorrow'), 'tomorrow');
