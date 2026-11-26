@@ -187,14 +187,17 @@ export function apbExtractLength(brief) {
   return '';
 }
 
+const APB_MONTH = '(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may'
+  + '|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
+
 const APB_DEADLINE_RE = new RegExp(
   '\\b(?:by|before|due)\\s+('
   + '(?:mon|tues|wednes|thurs|fri|satur|sun)day'
   + '|tomorrow|today|next week|this week'
-  + '|\\d{1,2}(?:st|nd|rd|th)?(?:\\s+of)?\\s+'
-  + '(?:january|february|march|april|may|june|july|august'
-  + '|september|october|november|december)'
+  + `|\\d{1,2}(?:st|nd|rd|th)?(?:\\s+of)?\\s+${APB_MONTH}\\b`
+  + `|${APB_MONTH}\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+\\d{4})?\\b`
   + '|\\d{4}-\\d{2}-\\d{2}'
+  + '|\\d{1,2}/\\d{1,2}(?:/\\d{2}(?:\\d{2})?)?\\b'
   + ')',
   'i',
 );

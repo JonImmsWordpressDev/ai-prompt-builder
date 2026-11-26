@@ -115,6 +115,25 @@ test('deadline matches the accepted date shapes', () => {
   assert.equal(apbExtractDeadline('sometime soonish'), '');
 });
 
+test('deadline matches month-first, abbreviated and numeric dates', () => {
+  assert.equal(apbExtractDeadline('Write a blog post by March 3rd for homeowners'), 'March 3rd');
+  assert.equal(apbExtractDeadline('a speech by December 12'), 'December 12');
+  assert.equal(apbExtractDeadline('by Dec 12'), 'Dec 12');
+  assert.equal(apbExtractDeadline('due Sept. 3, 2027 at noon'), 'Sept. 3, 2027');
+  assert.equal(apbExtractDeadline('by 3 Dec'), '3 Dec');
+  assert.equal(apbExtractDeadline('by 12/15'), '12/15');
+  assert.equal(apbExtractDeadline('by 12/15/2026'), '12/15/2026');
+});
+
+test('deadline ignores "by" phrases that are not dates', () => {
+  assert.equal(apbExtractDeadline('by the way, keep it short'), '');
+  assert.equal(apbExtractDeadline('send it by email'), '');
+  assert.equal(apbExtractDeadline('done by March'), '');
+  assert.equal(apbExtractDeadline('by mayday 3'), '');
+  assert.equal(apbExtractDeadline('by 3 mayday'), '');
+  assert.equal(apbExtractDeadline('by March 300'), '');
+});
+
 test('extractSignals returns all four keys, empty when absent', () => {
   assert.deepEqual(apbExtractSignals(''), {
     audience: '', tone: '', length: '', deadline: '',
