@@ -143,13 +143,15 @@ export function apbExtractAudience(brief) {
     // not match. The \b before the cue is what stops "for" firing inside
     // "before".
     const pattern = new RegExp(`\\b${apbEscapeRegExp(cue)}\\s+([^,.;:]+)`, 'gi');
-    for (const match of text.matchAll(pattern)) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      // With no punctuation between two occurrences of the same cue (e.g.
+      // "for 2 weeks for my family"), the greedy capture swallows both. So
+      // a rejected capture resumes the scan just past this cue rather than
+      // past the whole capture, and the later cue still gets its turn.
+      pattern.lastIndex = match.index + 1;
       const words = match[1].trim().split(/\s+/);
       const first = words[0].toLowerCase();
-      // Reject-checking the leading word, not the whole phrase, is what
-      // catches a run-on capture: with no punctuation between two
-      // occurrences of the same cue (e.g. "for me and for us"), the greedy
-      // capture swallows both, but the phrase still opens on filler.
       if (APB_AUDIENCE_REJECT.includes(first)) continue;
       if (APB_AUDIENCE_TIME_WORDS.includes(first)) continue;
       if (APB_COUNT_RE.test(first) && APB_DURATION_UNIT_RE.test(words[1] || '')) continue;
