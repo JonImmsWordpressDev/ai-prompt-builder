@@ -135,6 +135,17 @@ test('deadline matches month-first, abbreviated and numeric dates', () => {
   assert.equal(apbExtractDeadline('by 12/15/2026'), '12/15/2026');
 });
 
+test('deadline accepts relative phrases like "end of day" and "the 15th"', () => {
+  assert.equal(apbExtractDeadline('Write the report by end of day'), 'end of day');
+  assert.equal(apbExtractDeadline('Draft the email by EOD'), 'EOD');
+  assert.equal(apbExtractDeadline('Finish the deck by the end of the week'), 'the end of the week');
+  assert.equal(apbExtractDeadline('Send the proposal by tonight'), 'tonight');
+  assert.equal(apbExtractDeadline('Write a post by the 15th'), 'the 15th');
+  assert.equal(apbExtractDeadline('due the 3rd of May'), 'the 3rd of May');
+  assert.equal(apbExtractDeadline('Write a recap by the end of the month'), 'the end of the month');
+  assert.equal(apbExtractDeadline('Plan the launch by next month'), 'next month');
+});
+
 test('deadline ignores "by" phrases that are not dates', () => {
   assert.equal(apbExtractDeadline('by the way, keep it short'), '');
   assert.equal(apbExtractDeadline('send it by email'), '');
@@ -142,6 +153,9 @@ test('deadline ignores "by" phrases that are not dates', () => {
   assert.equal(apbExtractDeadline('by mayday 3'), '');
   assert.equal(apbExtractDeadline('by 3 mayday'), '');
   assert.equal(apbExtractDeadline('by March 300'), '');
+  assert.equal(apbExtractDeadline('by the end, keep it short'), '');
+  assert.equal(apbExtractDeadline('by the 15 people on the team'), '');
+  assert.equal(apbExtractDeadline('by eodx'), '');
 });
 
 test('extractSignals returns all four keys, empty when absent', () => {
