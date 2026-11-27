@@ -200,6 +200,10 @@ const APB_DEADLINE_RE = new RegExp(
   + `|${APB_MONTH}\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?(?:,?\\s+\\d{4})?\\b`
   + '|\\d{4}-\\d{2}-\\d{2}'
   + '|\\d{1,2}/\\d{1,2}(?:/\\d{2}(?:\\d{2})?)?\\b'
+  + '|tonight|next month|this month'
+  + '|(?:the\\s+)?end of (?:the\\s+)?(?:day|week|month|year)\\b'
+  + '|(?:eod|eow|cob)\\b'
+  + `|the\\s+\\d{1,2}(?:st|nd|rd|th)(?:\\s+of\\s+${APB_MONTH})?\\b`
   + ')',
   'i',
 );
