@@ -113,6 +113,10 @@ test('length keeps thousands separators and accepts a hyphen before the unit', (
   assert.equal(apbExtractLength('a 2,000-word essay'), '2,000 word');
   assert.equal(apbExtractLength('a 5-page report'), '5 page');
   assert.equal(apbExtractLength('a 10-minute talk'), '10 minute');
+  assert.equal(apbExtractLength('Write a 30-second ad script for parents'), '30 second');
+  assert.equal(apbExtractLength('Write a 60 second elevator pitch'), '60 second');
+  assert.equal(apbExtractLength('Write a 90-second video script'), '90 second');
+  assert.equal(apbExtractLength('a 15 sec promo'), '15 sec');
   assert.equal(apbExtractLength('somewhere between 500-800 words'), '800 words');
 });
 
@@ -209,6 +213,7 @@ test('a rejected capture with no punctuation still lets the next cue through', (
   assert.equal(apbExtractAudience('Write onboarding docs for a week for new hires'), 'new hires');
   assert.equal(apbExtractAudience('Plan a workshop for two hours for my team'), 'my team');
   assert.equal(apbExtractAudience('Plan a class for 30 minutes for beginners'), 'beginners');
+  assert.equal(apbExtractAudience('Write a 30-second ad for 30 seconds for parents'), 'parents');
   assert.equal(apbExtractAudience('Write a post for me about pipes for homeowners'), 'homeowners');
   assert.equal(apbExtractAudience('plan meals for next week for the kids'), 'the kids');
 });
