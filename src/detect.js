@@ -182,7 +182,7 @@ export function apbExtractLength(brief) {
   const text = String(brief == null ? '' : brief);
   const counted = /\b(\d{1,3}(?:,\d{3})+|\d{2,5})\s*-?\s*(words?|characters?|chars?)\b/i.exec(text);
   if (counted) return `${counted[1]} ${counted[2].toLowerCase()}`;
-  const unitised = /\b(\d{1,3})\s*-?\s*(pages?|paragraphs?|slides?|minutes?|mins?)\b/i.exec(text);
+  const unitised = /\b(\d{1,3})\s*-?\s*(pages?|paragraphs?|slides?|minutes?|mins?|seconds?|secs?)\b/i.exec(text);
   if (unitised) return `${unitised[1]} ${unitised[2].toLowerCase()}`;
   const adjective = /\b(short|brief|long|in-depth|detailed)\b/i.exec(text);
   if (adjective) return adjective[1].toLowerCase();
